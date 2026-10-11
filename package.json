@@ -1,19 +1,13 @@
 {
-  "name": "workout",
+  "name": "ritch",
   "private": true,
-  "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host",
-    "build": "vite build",
-    "preview": "vite preview --host",
+    "serve": "python3 -m http.server 8000 -d site",
     "test": "node --test test/*.test.js",
-    "icons": "node scripts/icons.mjs",
-    "verify": "npm run build && node scripts/verify.mjs"
+    "pdf": "node scripts/pdf.mjs"
   },
   "devDependencies": {
-    "playwright": "1.56.1",
-    "vite": "^7.1.0",
-    "vite-plugin-pwa": "^1.0.3"
+    "playwright": "1.56.1"
   }
 }

@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Ritch</title>
+  <meta name="theme-color" content="#fafafa" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#111111" media="(prefers-color-scheme: dark)">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Ritch">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <style>
+    :root {
+      --bg: #fafafa;
+      --fg: #111;
+      --muted: #666;
+      --line: #e5e5e5;
+      --blue: #0b2a6f;
+      color-scheme: light dark;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #111; --fg: #eee; --muted: #888; --line: #2a2a2a; --blue: #6d8fdc; }
+    }
+
+    * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; height: 100%; overflow: hidden; overscroll-behavior: none; }
+    body {
+      margin: 0;
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--fg);
+      font: 17px/1.5 -apple-system, system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+    }
+    main {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      max-width: 480px;
+      margin: 0 auto;
+      padding: calc(24px + env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom));
+    }
+    p { margin: 0; }
+    b { font-weight: 600; font-variant-numeric: tabular-nums; }
+    .muted { color: var(--muted); }
+    .head { display: flex; justify-content: space-between; }
+
+    .grid { display: grid; grid-template-columns: repeat(15, 1fr); gap: 5px; margin: min(1.5cm, 4dvh) 0 0; }
+    .c {
+      display: flex; align-items: center; justify-content: center;
+      aspect-ratio: 1; border-radius: 2px; border: 1px solid var(--line);
+      font-size: 9px; font-weight: 700; line-height: 1; font-style: normal; letter-spacing: -0.03em;
+    }
+    .c.done { color: var(--blue); }
+    .c.done::after { content: '33'; }
+    .c.miss { background: var(--line); }
+    .c.today { border: 1.5px dashed var(--fg); }
+
+    /* Today's list. Tap a row to tick it. */
+    .now { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 12px; min-height: 0; padding-top: 12px; }
+    h1 { font-size: 28px; font-weight: 600; letter-spacing: -0.01em; margin: 0; line-height: 1.2; }
+    .list { display: flex; flex-direction: column; gap: 8px; }
+    .item {
+      display: flex; align-items: center; gap: 14px; width: 100%; text-align: left;
+      min-height: 52px; padding: 8px 14px; border-color: var(--line);
+    }
+    .item .box {
+      flex: none; width: 26px; height: 26px; border: 1.5px solid var(--fg); border-radius: 4px;
+      display: flex; align-items: center; justify-content: center; font-size: 18px; line-height: 1;
+    }
+    .item.on .box { background: var(--fg); color: var(--bg); }
+    .item.on .box::after { content: '✓'; }
+    .item.on .what { color: var(--muted); }
+    .what { flex: 1; }
+    .how { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .run { display: block; font-size: 14px; color: var(--muted); line-height: 1.45; }
+    .run b { color: var(--fg); }
+    .said { font-size: 20px; font-weight: 600; min-height: 30px; }
+
+    button {
+      font: inherit; color: inherit; background: none;
+      border: 1px solid var(--fg); border-radius: 6px;
+      min-height: 56px; padding: 0 16px; cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .foot { display: flex; justify-content: space-between; margin-top: 16px; }
+
+    @media (max-height: 700px) {
+      .grid { margin-top: 12px; }
+      .item { min-height: 46px; padding: 6px 12px; }
+      .run { font-size: 13px; line-height: 1.35; }
+    }
+  </style>
+</head>
+<body>
+  <main id="app"></main>
+
+  <script type="module">
+    import { workout, howMuch, allDates, streaks, counted, today, label, diffDays, FIRST } from './plan.js';
+
+    // { 'YYYY-MM-DD': [true/false per item, in order] }
+    const KEY = 'ritch-ticks';
+    const root = document.getElementById('app');
+
+    function loadLog() {
+      try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; }
+    }
+
+    function saveLog(log) {
+      try { localStorage.setItem(KEY, JSON.stringify(log)); } catch {}
+      navigator.storage?.persist?.().catch(() => {});
+    }
+
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function cellClass(date, t, log) {
+      if (counted(date, log)) return 'done';
+      if (date === t) return 'today';
+      if (date < t) return 'miss';
+      return '';
+    }
+
+    function itemHtml(item, i, on) {
+      const run = item.lines
+        ? `<span class="run">${item.lines.map(([what, how]) => `${esc(what)} <b>${esc(how)}</b>`).join('<br>')}</span>`
+        : '';
+      return `<button class="item ${on ? 'on' : ''}" data-tick="${i}">
+        <span class="box"></span>
+        <span class="what">${esc(item.name)}${run}</span>
+        <span class="how">${esc(howMuch(item))}</span>
+      </button>`;
+    }
+
+    function render() {
+      const t = today();
+      const log = loadLog();
+      const dates = allDates();
+      const w = workout(t, log);
+      const checks = log[t] || [];
+      const count = dates.filter((d) => counted(d, log)).length;
+      const run = streaks(log, t);
+      const dayIndex = Math.min(dates.length, Math.max(0, diffDays(FIRST, t) + 1));
+
+      let now = '<h1>33</h1>';
+      if (w) {
+        const said = counted(t, log) ? 'You did all. Day counted.' : w.note ? `<span class="muted">${esc(w.note)}</span>` : '';
+        now = `<h1>${esc(w.title)}</h1>
+          <div class="list">${w.items.map((item, i) => itemHtml(item, i, checks[i])).join('')}</div>
+          <p class="said">${said}</p>`;
+      }
+
+      root.innerHTML = `
+        <p class="head"><span>Day <b>${dayIndex}</b> of ${dates.length}</span><span><b>${count}</b> done</span></p>
+        <div class="grid" aria-label="Oct 11 to Jan 8">${dates.map((d) => `<i class="c ${cellClass(d, t, log)}" title="${label(d)}"></i>`).join('')}</div>
+        <section class="now">${now}</section>
+        <p class="foot muted"><span>${count ? `Streak <b>${run.current}</b> · longest <b>${run.longest}</b>` : '&nbsp;'}</span></p>
+      `;
+    }
+
+    // Tap a row to tick it; tap again to untick.
+    root.addEventListener('click', (e) => {
+      const row = e.target.closest('[data-tick]');
+      if (!row) return;
+      const t = today();
+      const log = loadLog();
+      const checks = log[t] || [];
+      const i = Number(row.dataset.tick);
+      checks[i] = !checks[i];
+      log[t] = checks;
+      saveLog(log);
+      render();
+    });
+
+    render();
+    // Reopened the next day: the date moved on, redraw.
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
+
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+  </script>
+</body>
+</html>

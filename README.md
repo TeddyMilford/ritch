@@ -1,58 +1,36 @@
 # Ritch
 
-A small offline PWA that shows today's workout and tracks it: a tap counter for reps with a rest timer, a run session timer, and a Progress screen. Weeks run Sunday through Saturday. Runs are on Monday, Wednesday and Saturday, strength sessions on Sunday, Tuesday and Thursday, with short push-up practice after each run, and Friday is the rest day. Sunday, Oct 18 stays a rest day so the first workout is still Monday, Oct 19. An optional, easier practice week runs Oct 11-17. Training starts Monday, Oct 19, 2026, and the target date is Thursday, Dec 31, 2026.
+Run, bitch. 33 is Paul Newman's racing number.
 
-The stack is vanilla JS with Vite and `vite-plugin-pwa`. There's no backend and no runtime API calls. All data lives in `localStorage` on the device.
+A sibling of [Change](https://github.com/TeddyMilford/change). One screen: a 90-day block (Oct 11, 2026 to Jan 8, 2027) as 90 squares, and the one thing to do now.
 
-## Run locally
+The screen shows today as a list. Tap each thing when it's done; tap again to untick. Tick everything and the day gets a 33: "You did all. Day counted." Rest days have one thing: "I rested". Streaks count days in a row.
 
-```sh
-npm install
-npm run dev        # http://localhost:5173 (also printed on your LAN IP)
-npm test           # unit tests: dates, schedule, progression, progress, storage
-npm run verify     # build + end-to-end checks in Chromium/WebKit at iPhone sizes
-```
+The hidden math (pull-ups, dips, push-ups): leave one unticked on a lift day where you ticked something else and it drops a step next time (never below 1 rep). Tick it in every lift session of a week and it goes up a step (+1, push-ups +2). Days you don't touch change nothing. Weeks 1 and 6 are lighter and skip the step up. Test days are one max set of each, ticked, no counting. The PDF shows the starting numbers.
 
-`npm run verify` leaves screenshots in `test-results/`.
+| Day | |
+|---|---|
+| Sun, Tue, Thu | Lift: pull-ups, dips, push-ups, plus legs or trunk |
+| Mon, Wed, Sat | Run (Couch to 5K), then 2 easy sets of push-ups |
+| Fri | Rest |
 
-## Where things live
+Oct 11-17 is a practice week; Thursday Oct 15 is a max test. Week 6 (Thanksgiving) is lighter. Wednesday Dec 30 is a 5K. Thursday Dec 31 is a max test. The block ends Friday Jan 8.
+
+## Files
 
 | Path | What |
 |---|---|
-| `src/plan/running.json` | Couch to 5K weeks 1-9 (NHS), plus weeks 10-11 and the ongoing weeks (the app's proposal) |
-| `src/plan/practice.json` | The optional practice week, Oct 11-17 (the app's proposal) |
-| `src/plan/strength.json` | Rep standards, regressions, sessions A/B, week types, progression rule |
-| `src/plan/about.json` | Start/target dates, weekday schedule, safety text, sources, programming choices |
-| `src/plan.js` | Pure logic: date → workout, repeats, progression replay, projections |
-| `src/progress.js` | Pure logic: reps per session, weekly totals, consistency, run times |
-| `src/chart.js` | Inline SVG line chart for the Progress screen |
-| `src/dates.js` | America/Chicago "today" and DST-safe date math |
-| `src/store.js` | localStorage, schema migration, JSON export/import |
-| `src/screen.js` | All views |
+| `site/plan.js` | The entire plan. Edit the rep tables and sessions here. |
+| `site/index.html` | The screen |
+| `site/sw.js` | Offline cache |
+| `scripts/pdf.mjs` | Prints the plan to `ritch.pdf` |
 
-Edit the JSON files to change the plan, then rebuild. Logs are keyed by date and item id, so text edits never touch saved history.
-
-## Install on iPhone
-
-The service worker, offline mode and a dependable home-screen install all need **HTTPS on a URL the phone can reach**. On the iPhone, `localhost` means the phone itself, not your Mac. A `http://192.168.x.x:5173` LAN URL will open the page, but it isn't a secure context, so offline mode won't work.
-
-The simplest option is GitHub Pages, which is free and HTTPS. `.github/workflows/deploy.yml` is already set up:
+## Commands
 
 ```sh
-git init && git add -A && git commit -m "Workout app"
-gh repo create ritch --private --source . --push   # or --public
+npm run serve   # http://localhost:8000
+npm test
+npm run pdf     # writes ritch.pdf (needs: npm install && npx playwright install chromium)
 ```
 
-Then in the repo settings, go to **Settings → Pages → Source: GitHub Actions**. Pages on a private repo needs a paid GitHub plan; on the free plan, make the repo public. The code contains no personal data: your logs and setup stay on the phone. The workflow runs the tests, builds with the right base path and publishes to `https://<user>.github.io/ritch/`.
-
-On the iPhone:
-
-1. Open that URL in **Safari**.
-2. Tap Share, then **Add to Home Screen**, then Add.
-3. Open it once from the home screen while online. After that it works offline.
-
-## Data
-
-- Saved on the device only, with no sync. The home-screen app has its own storage, separate from the Safari tab.
-- **Setup → Export JSON** saves a backup through the share sheet. **Import JSON** restores it, replacing what's on the device.
-- App updates replace code only. The storage key (`workout.v1`) stays the same, and `migrate()` upgrades older data.
+Pushing to `main` deploys `site/` to GitHub Pages at https://teddymilford.github.io/ritch/. On the iPhone: open it in Safari, Share, Add to Home Screen. DONE marks are saved on the phone only.
