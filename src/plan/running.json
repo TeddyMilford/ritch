@@ -1,0 +1,132 @@
+{
+  "about": "Weeks 1-9 follow the NHS Couch to 5K plan exactly. Weeks 10-11 and the continuing weeks are this app's own proposal, not NHS content. Runs are Monday, Wednesday and Saturday, so there is always a rest or lifting day between runs. Edit any text or duration here; the app reads this file as-is.",
+  "effort": "Easy and conversational: you should be able to speak in short sentences. Walking breaks are part of the plan, not a failure. Time on feet matters more than speed.",
+  "warmup": "Brisk walk, 5 min",
+  "cooldown": "Easy walk, 5 min",
+  "weeks": [
+    {
+      "week": 1,
+      "title": "Couch to 5K, week 1",
+      "runs": [
+        { "minutes": 29, "steps": ["Run 1 min, walk 90 sec", "Repeat 7 times", "Finish with a 1 min run"], "summary": "8 × 1 min runs, 90 sec walks between" },
+        { "same": 1 },
+        { "same": 1 }
+      ],
+      "advance": "Move on if all three runs were manageable. Repeating week 1 is common and fine."
+    },
+    {
+      "week": 2,
+      "title": "Couch to 5K, week 2",
+      "runs": [
+        { "minutes": 29, "steps": ["Run 90 sec, walk 2 min", "Repeat 5 times", "Finish with a 90 sec run"], "summary": "6 × 90 sec runs, 2 min walks between" },
+        { "same": 1 },
+        { "same": 1 }
+      ],
+      "advance": "Move on if all three runs were manageable and nothing hurt in a way that changed how you moved."
+    },
+    {
+      "week": 3,
+      "title": "Couch to 5K, week 3",
+      "runs": [
+        { "minutes": 25, "steps": ["Run 90 sec, walk 90 sec", "Run 3 min, walk 3 min", "Run 90 sec, walk 90 sec", "Run 3 min"], "summary": "Runs of 90 sec and 3 min" },
+        { "same": 1 },
+        { "same": 1 }
+      ],
+      "advance": "Move on if the 3 min runs felt controlled."
+    },
+    {
+      "week": 4,
+      "title": "Couch to 5K, week 4",
+      "runs": [
+        { "minutes": 32, "steps": ["Run 3 min, walk 90 sec", "Run 5 min, walk 2½ min", "Run 3 min, walk 90 sec", "Run 5 min"], "summary": "Runs of 3 and 5 min" },
+        { "same": 1 },
+        { "same": 1 }
+      ],
+      "advance": "Week 5 has bigger jumps. Move on only if the 5 min runs felt steady."
+    },
+    {
+      "week": 5,
+      "title": "Couch to 5K, week 5",
+      "runs": [
+        { "minutes": 31, "steps": ["Run 5 min, walk 3 min", "Run 5 min, walk 3 min", "Run 5 min"], "summary": "3 × 5 min runs" },
+        { "minutes": 31, "steps": ["Run 8 min, walk 5 min", "Run 8 min"], "summary": "2 × 8 min runs" },
+        { "minutes": 30, "steps": ["Run 20 min without walking"], "summary": "20 min continuous", "note": "The biggest jump in the plan. Slow down as much as you need to. If you have to walk, that's fine. Repeat run 2 or this week if it was too much." }
+      ],
+      "advance": "Move on if you finished the 20 min run, even slowly. If you had to stop, repeat week 5."
+    },
+    {
+      "week": 6,
+      "title": "Couch to 5K, week 6",
+      "runs": [
+        { "minutes": 34, "steps": ["Run 5 min, walk 3 min", "Run 8 min, walk 3 min", "Run 5 min"], "summary": "Runs of 5, 8 and 5 min" },
+        { "minutes": 33, "steps": ["Run 10 min, walk 3 min", "Run 10 min"], "summary": "2 × 10 min runs" },
+        { "minutes": 35, "steps": ["Run 25 min without walking"], "summary": "25 min continuous" }
+      ],
+      "advance": "Move on if the 25 min run was completed at an easy pace."
+    },
+    {
+      "week": 7,
+      "title": "Couch to 5K, week 7",
+      "runs": [
+        { "minutes": 35, "steps": ["Run 25 min without walking"], "summary": "25 min continuous" },
+        { "same": 1 },
+        { "same": 1 }
+      ],
+      "advance": "Move on if all three 25 min runs felt sustainable."
+    },
+    {
+      "week": 8,
+      "title": "Couch to 5K, week 8",
+      "runs": [
+        { "minutes": 38, "steps": ["Run 28 min without walking"], "summary": "28 min continuous" },
+        { "same": 1 },
+        { "same": 1 }
+      ],
+      "advance": "Move on if all three 28 min runs felt sustainable."
+    },
+    {
+      "week": 9,
+      "title": "Couch to 5K, week 9",
+      "runs": [
+        { "minutes": 40, "steps": ["Run 30 min without walking"], "summary": "30 min continuous", "note": "Thirty minutes of running is not the same as 5K. At an easy pace, 30 minutes is usually about 3.5 to 4.5 km. The next weeks build from here." },
+        { "same": 1 },
+        { "same": 1 }
+      ],
+      "advance": "Move on once all three 30 min runs are done without pain. This completes the NHS plan."
+    },
+    {
+      "week": 10,
+      "title": "After Couch to 5K: consolidate",
+      "proposal": true,
+      "runs": [
+        { "minutes": 40, "steps": ["Run 30 min easy"], "summary": "30 min easy", "note": "Repeat the week 9 run. Keep it conversational." },
+        { "minutes": 40, "steps": ["Run 10 min easy", "Then 6 × (1 min steady, 2 min easy)", "Finish with 2 min easy"], "summary": "30 min with 6 short steady pick-ups", "note": "Steady means comfortably hard: you can say a few words, not full sentences. This is roughly the effort of a sub-35 5K. Do not sprint." },
+        { "minutes": 43, "steps": ["Run 33 min easy"], "summary": "33 min easy", "note": "About 10% longer than your longest recent run, and no more. A single run much longer than recent ones is linked with higher injury risk." }
+      ],
+      "advance": "Move on if all three runs were pain-free and the 33 min run stayed conversational."
+    },
+    {
+      "week": 11,
+      "title": "5K check week",
+      "proposal": true,
+      "runs": [
+        { "minutes": 42, "steps": ["Run 30 min easy", "Then 4 × 20 sec relaxed quicker running, walk back between"], "summary": "30 min easy + 4 relaxed strides" },
+        { "minutes": 50, "steps": ["5 min easy jog after the walk", "Run 5K at a steady, even effort", "Walk until breathing settles"], "summary": "Optional 5K check", "note": "Only if weeks 9 and 10 were pain-free. A sub-35 finish needs faster than 7:00 per km (about 11:16 per mile). Start a little slower than that and speed up after 3 km if you can. If you're not ready, run 33 min easy instead and do the check in a later week. Missing 35:00 now doesn't mean the goal is off.", "check": true },
+        { "minutes": 46, "steps": ["Run 36 min easy"], "summary": "36 min easy", "note": "Only extend if the 33 min run felt easy. Otherwise repeat 33 min." }
+      ],
+      "advance": "Continue to the ongoing weeks. If you haven't done the 5K check yet, it stays available on the middle run."
+    },
+    {
+      "week": 12,
+      "title": "Ongoing: build toward a comfortable 5K",
+      "proposal": true,
+      "repeat": true,
+      "runs": [
+        { "minutes": 42, "steps": ["Run 30 min easy", "Then 4 × 20 sec relaxed strides"], "summary": "30 min easy + strides" },
+        { "minutes": 45, "steps": ["Run 10 min easy", "Then 3 × (5 min steady, 2 min easy)", "Finish with 4 min easy"], "summary": "Steady intervals, or a 5K check", "note": "Steady = comfortably hard, roughly 5K-goal effort. Once a month, you can replace this with a 5K check if you've been pain-free." },
+        { "minutes": 50, "steps": ["Run easy for the longest duration you've comfortably done, plus up to 3 min", "Cap at 45 min for now"], "summary": "Long easy run, +3 min at most", "note": "Add time only if the previous long run felt easy. Never add more than about 10% to your longest run of the last month." }
+      ],
+      "advance": "This week repeats. Keep it until a 5K under 35 min feels comfortable, then hold or set a new goal."
+    }
+  ]
+}
