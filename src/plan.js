@@ -19,8 +19,12 @@ export const MOVEMENTS = ['pull', 'dip', 'push'];
 
 export function dayType(date) {
   if (date < PRACTICE) return 'prep';
+  if (date === WEEK1) return 'rest'; // the first workout stays Monday, Oct 19
   return about.schedule[String(weekday(date))];
 }
+
+// Sunday, Tuesday, Thursday -> session C, A, B
+const LIFT_DAYS = { 0: 'C', 2: 'A', 4: 'B' };
 
 // Calendar training week, 1-based, Sunday through Saturday. Oct 18-24 is week 1.
 // The practice week (Oct 11-17) is week 0, and so is everything before it.
@@ -98,8 +102,26 @@ function buildRun(state, date) {
       { id: 'warmup', name: 'Warm-up', detail: running.warmup },
       { id: 'main', name: s.summary, steps: s.steps },
       { id: 'cooldown', name: 'Cool-down', detail: running.cooldown },
+      ...runAddon(state, date),
     ],
   };
+}
+
+// Easy push-up sets after a run: about half the working target. Not part of weekly progression.
+function runAddon(state, date) {
+  const a = strength.runAddon;
+  const mv = strength.movements[a.movement];
+  const ws = workingState(state, date)[a.movement];
+  const base = { id: a.movement, movement: a.movement, addon: true, rest: a.rest, standard: mv.standard, goal: mv.goal, how: a.note, inputs: true };
+  if (ws.mode === 'working') {
+    const n = Math.max(1, Math.round(ws.W * a.fraction));
+    return [{ ...base, kind: 'working', name: `${mv.name} practice`, detail: `${a.sets} × ${n}`, target: n, sets: setList(a.movement, a.sets, String(n)) }];
+  }
+  if (ws.mode === 'regression') {
+    const r = mv.regression.none;
+    return [{ ...base, kind: 'regression', name: `${r.name} practice`, detail: `${a.sets} × ${r.reps}`, how: `${a.note} ${r.how}`, sets: setList(a.movement, a.sets, '') }];
+  }
+  return [{ ...base, kind: 'unknown', name: `${mv.name} practice`, detail: `${a.sets} easy sets, stopping with 4 or more clean reps left`, sets: setList(a.movement, a.sets, '') }];
 }
 
 // ---------- strength ----------
@@ -116,7 +138,7 @@ export function sessionDef(state, date) {
   const c = calWeek(date);
   const p = liftWeek(state, c);
   const type = weekType(p);
-  const day = weekday(date) === 2 ? 'A' : 'B';
+  const day = LIFT_DAYS[weekday(date)];
   const key = type === 'test' ? `${day}_test` : day;
   const def = strength.sessions[key];
   const lighter = type === 'intro' || type === 'lighter';
@@ -181,8 +203,8 @@ export function workingState(state, date) {
   for (let c = 1; c <= lastWeek; c++) {
     const results = { pull: [], dip: [], push: [] };
     let progressible = true;
-    for (const d of [addDays(weekStart(c), 2), addDays(weekStart(c), 4)]) { // Tue, Thu
-      if (d >= date) continue;
+    for (const d of Object.keys(LIFT_DAYS).map((wd) => addDays(weekStart(c), Number(wd)))) { // Sun, Tue, Thu
+      if (d >= date || dayType(d) !== 'lift') continue;
       const def = sessionDef(state, d);
       if (def.weekType === 'test' || def.weekType === 'lighter') progressible = false;
       const log = state.logs?.[d];
@@ -252,7 +274,7 @@ function movementItem(state, item, ws, weekTypeName) {
       kind: 'test',
       name: `${mv.name}: clean-rep check`,
       detail: '1 set to the standard. Stop when the next rep would not be clean.',
-      how: 'Warm up well first. Record the number of clean reps.',
+      how: 'Warm up well first.',
       sets: [{ id: `${m}:0`, label: 'Done' }],
       inputs: true,
       testHint: ws.max != null ? `Last known: ${ws.max}${ws.estimated ? ' (estimated)' : ''}` : '',
@@ -308,7 +330,7 @@ function movementItem(state, item, ws, weekTypeName) {
     sets,
     inputs: true,
     target: W,
-    hint: progressible ? `Next week: ${W + mv.step} per set if both sessions this week are clean.` : 'Targets hold this week.',
+    hint: progressible ? `Next week: ${W + mv.step} per set if every session this week is clean.` : 'Targets hold this week.',
   };
 }
 
@@ -322,7 +344,7 @@ function accessoryItem(state, item) {
   const unknownGear = a.alt && state.setup?.equipment?.[a.needs] == null;
   const name = useAlt ? a.alt.name : a.name;
   const reps = useAlt ? a.alt.reps : a.reps;
-  const how = useAlt ? a.alt.how : a.how + (unknownGear ? ` No weights? ${a.alt.name}, ${a.alt.reps}.` : '');
+  const how = useAlt ? a.alt.how : a.how + (unknownGear ? ` Without the equipment: ${a.alt.name}, ${a.alt.reps}.` : '');
   return {
     id: item.accessory,
     kind: 'accessory',
@@ -370,7 +392,7 @@ function buildPractice(state, date) {
       ],
     };
   }
-  const day = weekday(date) === 2 ? 'A' : 'B';
+  const day = weekday(date) === 4 ? 'B' : 'A'; // Sunday and Tuesday: easy sets; Thursday: rep check
   const def = practice.lift[day];
   const ws = initialWorking(state);
   const moves = MOVEMENTS.map((m) => {

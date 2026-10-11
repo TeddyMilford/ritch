@@ -1,6 +1,6 @@
 # Ritch
 
-A small offline PWA that shows today's workout and tracks it: a tap counter for reps with a rest timer, a run session timer, and a Progress screen. Weeks run Sunday through Saturday. Runs are on Monday, Wednesday and Saturday, strength sessions on Tuesday and Thursday, and Friday and Sunday are rest days. An optional, easier practice week runs Oct 11-17. Training starts Monday, Oct 19, 2026, and the target date is Thursday, Dec 31, 2026.
+A small offline PWA that shows today's workout and tracks it: a tap counter for reps with a rest timer, a run session timer, and a Progress screen. Weeks run Sunday through Saturday. Runs are on Monday, Wednesday and Saturday, strength sessions on Sunday, Tuesday and Thursday, with short push-up practice after each run, and Friday is the rest day. Sunday, Oct 18 stays a rest day so the first workout is still Monday, Oct 19. An optional, easier practice week runs Oct 11-17. Training starts Monday, Oct 19, 2026, and the target date is Thursday, Dec 31, 2026.
 
 The stack is vanilla JS with Vite and `vite-plugin-pwa`. There's no backend and no runtime API calls. All data lives in `localStorage` on the device.
 

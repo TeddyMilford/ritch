@@ -23,6 +23,10 @@ const openLogs = new Set(); // log disclosures the user opened, kept open across
 let counter = null; // rep counter in progress: { date, id, n, restFrom }; saved to the log only when a set is saved
 let ticker = null; // 1 s interval for the rest timer and run timer
 let wakeLock = null;
+let slide = ''; // 'next' or 'prev': one-shot card animation direction
+let swipe = null; // touch start point for swiping between cards
+// Selected tab per tabbed screen. Switching tabs toggles panels in place, so unsaved form fields survive.
+const tabs = { progress: 'summary', lift: 'pull', setup: 'reps', about: 'plan' };
 
 const saveSoon = debounce(() => save(state), 400);
 export function flushSave() {
@@ -51,7 +55,7 @@ export function checkDate() {
   if (t === today) return;
   const wasOnToday = view.date === today;
   today = t;
-  if (view.name === 'day' && wasOnToday) view.date = t;
+  if (view.name === 'day' && wasOnToday) Object.assign(view, { date: t, card: null });
   if (view.name !== 'day' || wasOnToday) render();
 }
 
@@ -65,7 +69,22 @@ function go(name, date = view.date) {
   openLogs.clear();
   flash = '';
   render();
-  root.scrollTop = 0;
+}
+
+function goDay(date, card = null) {
+  view = { name: 'day', date, card };
+  flash = '';
+  openLogs.clear();
+  render();
+}
+
+function showCard(i) {
+  const n = root.querySelectorAll('.pager .dot').length;
+  if (view.name !== 'day' || i < 0 || i >= n || i === view.card) return;
+  slide = i > view.card ? 'next' : 'prev';
+  view.card = i;
+  flash = '';
+  render();
 }
 
 function logFor(date) {
@@ -99,22 +118,64 @@ export function render() {
   reset(root);
   clearInterval(ticker);
   ticker = null;
+  // Keep the pane's scroll position when re-rendering the same screen (only matters if it overflows).
+  const prev = root.querySelector('.pane');
+  const key = JSON.stringify([view.name, view.date, view.card, view.item]);
+  const keepScroll = prev && prev.dataset.key === key ? prev.scrollTop : 0;
+
   const v = view.name;
-  if (v === 'history') root.innerHTML = historyHtml();
-  else if (v === 'progress') root.innerHTML = progressHtml();
-  else if (v === 'count') root.innerHTML = countHtml(view.date);
-  else if (v === 'setup') root.innerHTML = setupHtml();
-  else if (v === 'about') root.innerHTML = aboutHtml();
-  else if (v === 'edit') root.innerHTML = editHtml(view.date);
-  else if (v === 'repeat') root.innerHTML = repeatHtml();
-  else root.innerHTML = dayHtml(view.date);
-  if (TEST) root.insertAdjacentHTML('afterbegin', testBarHtml());
+  let page;
+  if (v === 'history') page = historyPage();
+  else if (v === 'progress') page = progressPage();
+  else if (v === 'count') page = countPage(view.date);
+  else if (v === 'setup') page = setupPage();
+  else if (v === 'about') page = aboutPage();
+  else if (v === 'edit') page = editPage(view.date);
+  else if (v === 'repeat') page = repeatPage();
+  else page = dayPage(view.date);
+
+  root.innerHTML = `
+    ${TEST ? testBarHtml() : ''}
+    ${page.header || ''}
+    <main class="pane ${page.deck ? 'deck' : ''} ${page.reading ? 'reading' : ''} ${page.fill ? 'fill' : ''}" data-key="${esc(key)}">
+      <div class="card ${slide ? `in-${slide}` : ''}">${page.body}</div>
+    </main>
+    ${page.pager || ''}
+    ${flash ? `<p class="toast" role="status">${esc(flash)}</p>` : ''}
+    ${page.tabs === false ? '' : tabbarHtml(v)}`;
+  slide = '';
+  root.querySelector('.pane').scrollTop = keepScroll;
   bind();
   if (root.querySelector('[data-tick]')) {
     tick();
     ticker = setInterval(tick, 1000);
   }
   keepAwake(v === 'count' || !!root.querySelector('[data-clock][data-tick]'));
+}
+
+function tabbarHtml(v) {
+  const items = [['day', 'Today'], ['progress', 'Progress'], ['history', 'History'], ['setup', 'Setup'], ['about', 'About']];
+  const active = ['edit', 'repeat', 'count'].includes(v) ? 'day' : v;
+  return `<nav class="tabbar" aria-label="Sections">${items
+    .map(([k, l]) => {
+      const target = k === 'day' ? `data-go-day="${today}"` : `data-go="${k}"`;
+      return `<button class="tab ${active === k ? 'on' : ''}" ${target} ${active === k ? 'aria-current="page"' : ''}>${l}</button>`;
+    })
+    .join('')}</nav>`;
+}
+
+// Segmented tabs for a screen. Panels are all rendered; only the selected one is shown.
+function segTabs(group, opts) {
+  return `<div class="seg segtabs" role="tablist">${opts
+    .map(([k, l]) => `<button role="tab" data-tab="${group}:${k}" class="${tabs[group] === k ? 'on' : ''}" aria-selected="${tabs[group] === k}">${l}</button>`)
+    .join('')}</div>`;
+}
+function panel(group, k, html) {
+  return `<div class="panel" data-panel="${group}:${k}" ${tabs[group] === k ? '' : 'hidden'}>${html}</div>`;
+}
+
+function simpleHeader(title, extra = '') {
+  return `<header class="top"><h1 class="screen-h">${esc(title)}</h1>${extra}</header>`;
 }
 
 // Updates timers in place, without a re-render, so taps and typing aren't interrupted.
@@ -151,8 +212,8 @@ function navHtml(date) {
     <nav class="daynav">
       <button class="icon" data-go-day="${addDays(date, -1)}" aria-label="Previous day">‹</button>
       <div class="daynav-mid">
-        <div class="date">${esc(formatDate(date))}</div>
-        ${isToday ? '<div class="muted small">Today</div>' : `<button class="link small" data-go-day="${today}">Back to today</button>`}
+        <span class="date">${esc(formatDate(date, { weekday: 'short', month: 'short', day: 'numeric' }))}</span>
+        ${isToday ? '<span class="muted">· Today</span>' : `<button class="link" data-go-day="${today}">Back to today</button>`}
       </div>
       <button class="icon" data-go-day="${addDays(date, 1)}" aria-label="Next day">›</button>
     </nav>`;
@@ -164,11 +225,10 @@ function weekStripHtml(date) {
   const cells = weekDates(c).map((d) => {
     const w = workoutFor(state, d);
     const l = state.logs[d];
-    const mark = l?.status === 'done' ? '<span class="ok">✓</span>' : l?.status === 'skipped' ? '<span class="muted">skip</span>' : '';
+    const mark = l?.status === 'done' ? '<span class="ok">✓</span>' : l?.status === 'skipped' ? '<span class="muted">–</span>' : '';
     const cls = ['wk', d === date ? 'sel' : '', d === today ? 'today' : '', w.type].join(' ');
     return `<button class="${cls}" data-go-day="${d}" aria-label="${esc(formatDate(d))}: ${w.title}">
-      <span class="wk-d">${formatDate(d, { weekday: 'narrow' })}</span>
-      <span class="wk-n">${Number(d.slice(8))}</span>
+      <span class="wk-d">${formatDate(d, { weekday: 'narrow' })} ${Number(d.slice(8))}</span>
       <span class="wk-t">${label[w.type] || ''}</span>
       <span class="wk-s">${mark}</span>
     </button>`;
@@ -190,27 +250,58 @@ function weekLine(date, w) {
   return s;
 }
 
-function dayHtml(date) {
-  if (date < PRACTICE) return prepHtml(date);
+function dayHeader(date, w) {
+  return `<header class="top">
+    <div class="stripnav">
+      <button class="icon edge" data-go-day="${addDays(date, -1)}" aria-label="Previous day">‹</button>
+      ${weekStripHtml(date)}
+      <button class="icon edge" data-go-day="${addDays(date, 1)}" aria-label="Next day">›</button>
+    </div>
+    <div class="dayline">
+      <p class="weekline"><b class="date">${esc(formatDate(date, { weekday: 'short', month: 'short', day: 'numeric' }))}</b> <span class="muted">· ${esc(weekLine(date, w))}</span></p>
+      ${date === today ? '' : `<button class="link small" data-go-day="${today}">Back to today</button>`}
+    </div>
+  </header>`;
+}
+
+// A day is a short deck of cards, one screen each: overview, then the work, then finishing up.
+function dayPage(date) {
+  if (date < PRACTICE) return { header: date === today ? '' : `<header class="top">${navHtml(date)}</header>`, body: prepHtml(date) };
   const w = workoutFor(state, date);
   const log = state.logs[date];
-  const future = date > today;
-  const status = log?.status;
+  const cards = w.type === 'rest' ? [{ label: 'Rest day', html: restHtml(w, date) }] : workoutCards(w, date, log, date > today);
+  if (view.cardKey) {
+    view.card = Math.max(0, cards.findIndex((c) => c.key === view.cardKey));
+    delete view.cardKey;
+  }
+  if (view.card == null) view.card = defaultCard(w, date, log, cards);
+  view.card = Math.max(0, Math.min(cards.length - 1, view.card));
+  const i = view.card;
+  return {
+    header: dayHeader(date, w),
+    body: cards[i].html,
+    deck: cards.length > 1,
+    pager: cards.length > 1 ? pagerHtml(cards, i) : '',
+  };
+}
 
-  let body = '';
-  if (w.type === 'rest') body = restHtml(w, date);
-  else body = workoutHtml(w, date, log, future);
+// Open on the overview, except mid-run (timer going): open on the session.
+function defaultCard(w, date, log, cards) {
+  if (w.type === 'run' && log?.clockStart && !isFinished(log)) return cards.findIndex((c) => c.key === 'session');
+  return 0;
+}
 
+function pagerHtml(cards, i) {
+  const dots = cards.map((c, j) => `<span class="dot ${j === i ? 'on' : ''} ${c.done ? 'done' : ''}"></span>`).join('');
   return `
-    ${navHtml(date)}
-    ${weekStripHtml(date)}
-    <p class="muted small weekline">${esc(weekLine(date, w))}</p>
-    ${flash ? `<p class="flash">${esc(flash)}</p>` : ''}
-    ${isPractice(date) ? practiceNoteHtml() : ''}
-    ${bannerHtml(date)}
-    ${body}
-    ${footerHtml()}
-  `;
+    <nav class="pager" aria-label="Steps">
+      <button class="icon" data-card="${i - 1}" aria-label="Previous step" ${i === 0 ? 'disabled' : ''}>‹</button>
+      <div class="pager-mid">
+        <span class="pager-l">${esc(cards[i].label)} <span class="muted">${i + 1}/${cards.length}</span></span>
+        <span class="dots" aria-hidden="true">${dots}</span>
+      </div>
+      <button class="icon" data-card="${i + 1}" aria-label="Next step" ${i === cards.length - 1 ? 'disabled' : ''}>›</button>
+    </nav>`;
 }
 
 function restHtml(w, date) {
@@ -218,9 +309,12 @@ function restHtml(w, date) {
   return `
     <h1>Rest day</h1>
     <p class="lede">${esc(about.rest.text)}</p>
+    ${isPractice(date) ? practiceNoteHtml() : ''}
     ${date === WEEK1 ? `<p class="callout">Week 1 starts here. First workout tomorrow: ${esc(workoutFor(state, START).title.toLowerCase())}, about ${workoutFor(state, START).minutes} min. <button class="link" data-go="setup">Optional setup</button></p>` : ''}
     ${editedNote}
+    ${bannerHtml(date)}
     ${weekEndHtml(date)}
+    ${date === today && calWeek(today) >= 1 ? '<p class="small"><button class="link" data-go="repeat">Repeat this week…</button></p>' : ''}
   `;
 }
 
@@ -228,7 +322,7 @@ function minutes(w) {
   return w.minutes ? `About ${w.minutes} min` : '';
 }
 
-function workoutHtml(w, date, log, future) {
+function workoutCards(w, date, log, future) {
   const status = log?.status;
   const done = status === 'done';
   const skipped = status === 'skipped';
@@ -236,14 +330,13 @@ function workoutHtml(w, date, log, future) {
   const weekKind = { test: w.practice ? 'optional rep check' : 'check-in week', intro: 'first week', lighter: 'lighter week', practice: 'easy sets' }[w.weekType];
   const meta = [minutes(w), w.type === 'lift' ? cap(weekKind || '') : '', w.edited ? 'Edited' : ''].filter(Boolean).join(' · ');
 
-  const limitations = state.setup.limitations ? `<p class="callout"><b>Your note:</b> ${esc(state.setup.limitations)}</p>` : '';
+  const limitations = state.setup.limitations ? `<p class="note"><b>Your note:</b> ${esc(state.setup.limitations)}</p>` : '';
 
   let intro = '';
   if (w.type === 'run' && !w.edited) {
-    intro = `${w.isCheck ? '' : `<p class="lede">${esc(w.effort)}</p>`}${w.note ? `<p class="callout">${esc(w.note)}</p>` : ''}`;
+    intro = `${w.isCheck ? '' : `<p class="lede">${esc(w.effort)}</p>`}${w.note ? `<p class="note">${esc(w.note)}</p>` : ''}`;
   } else if (w.type === 'lift' && !w.edited) {
-    intro = `<p class="lede">${esc(w.focus)}</p>${w.weekNote ? `<p class="callout">${esc(w.weekNote)}</p>` : ''}
-      <div class="item warm"><div class="item-h"><span class="item-name">Warm-up</span></div><p class="small muted">${esc(w.warmup)}</p></div>`;
+    intro = `<p class="lede">${esc(w.focus)}</p>${w.weekNote ? `<p class="note">${esc(w.weekNote)}</p>` : ''}`;
   } else if (w.note) {
     intro = `<p class="lede">${esc(w.note)}</p>`;
   }
@@ -254,36 +347,81 @@ function workoutHtml(w, date, log, future) {
       ? `<div class="skip-box"><p><b>Skipped.</b> Nothing moves or doubles up. The next session stays as planned.</p><button class="link" data-act="reopen">Undo skip</button></div>`
       : '';
 
-  const items = w.items.map((it) => (w.type === 'run' ? runItemHtml(it, log, locked) : liftItemHtml(it, log, locked, w))).join('');
+  // The plan at a glance, so the overview shows the whole day without opening each card.
+  const glance = w.items.map((it) => {
+    const doneSets = (it.sets || []).filter((x) => log?.checks?.[x.id]).length;
+    const finished = w.type === 'run' && !it.movement ? !!log?.checks?.[it.id] : it.sets?.length && doneSets >= it.sets.length;
+    return `<li class="${finished ? 'is-done' : ''}"><span>${esc(it.name)}</span><span class="muted">${esc(glanceDetail(it, w))}</span></li>`;
+  }).join('');
 
-  const extra = locked ? '' : w.type === 'run' ? runExtraHtml(log) : liftExtraHtml(log);
+  const overview = `
+    <h1>${esc(w.title)}</h1>
+    ${meta ? `<p class="meta">${esc(meta)}</p>` : ''}
+    ${statusBox}
+    ${isPractice(date) ? practiceNoteHtml() : ''}
+    ${locked && !future ? '' : intro}
+    ${locked ? '' : limitations}
+    <ul class="glance">${glance}</ul>`;
 
+  const cards = [{ key: 'overview', label: 'Overview', html: overview }];
+  // Week recap and repeat prompts get their own card, first, so the overview still fits one screen.
+  const recap = bannerHtml(date) + weekEndHtml(date);
+  if (recap) cards.unshift({ key: 'recap', label: 'Week recap', html: `<h1>${esc(w.title)}</h1><p class="meta">${weekday(date) === 0 ? "First, last week. Swipe for today's workout." : 'Week recap'}</p>${recap}` });
+  if (w.type === 'lift' && !w.edited) {
+    cards.push({ key: 'warmup', label: 'Warm-up', html: `<div class="item lift-card"><h2 class="item-name">Warm-up</h2><p class="item-detail">About 5 min</p><p>${esc(w.warmup)}</p><p class="small muted">Then swipe or tap › for the first exercise.</p></div>` });
+  }
+
+  if (w.type === 'run') {
+    const clock = !locked && date === today ? clockHtml(log) : '';
+    const steps = w.items.filter((it) => !it.movement);
+    const items = steps.map((it) => runItemHtml(it, log, locked)).join('');
+    cards.push({ key: 'session', label: 'Session', html: `${clock}<div class="items">${items}</div>`, done: steps.every((it) => log?.checks?.[it.id]) });
+    for (const it of w.items.filter((x) => x.movement)) {
+      const doneSets = it.sets.filter((x) => log?.checks?.[x.id]).length;
+      cards.push({ key: it.id, label: it.name, html: liftItemHtml(it, log, locked, w), done: doneSets >= it.sets.length });
+    }
+  } else {
+    for (const it of w.items) {
+      const doneSets = (it.sets || []).filter((x) => log?.checks?.[x.id]).length;
+      cards.push({ key: it.id, label: it.name, html: liftItemHtml(it, log, locked, w), done: it.sets?.length && doneSets >= it.sets.length });
+    }
+  }
+
+  const extra = locked ? lockedSummaryHtml(w, log) : w.type === 'run' ? runExtraHtml(log) : liftExtraHtml(log);
   const actions = future
     ? `<div class="actions"><button class="wide" data-act="edit">Edit this workout</button></div><p class="muted small center">Future workouts are view-only. Log on the day.</p>`
     : locked
-      ? ''
+      ? statusBox
       : `<button class="primary wide" data-act="finish">Finish workout</button>
          <div class="row2">
            <button data-act="skip">Mark skipped</button>
            ${date >= today ? '<button data-act="edit">Edit</button>' : ''}
          </div>`;
-
-  const clock = w.type === 'run' && !locked && date === today ? clockHtml(log) : '';
-
-  return `
-    <h1>${esc(w.title)}</h1>
-    ${meta ? `<p class="meta">${esc(meta)}</p>` : ''}
-    ${statusBox}
-    ${clock}
-    ${intro}
-    ${limitations}
-    <div class="items">${items}</div>
+  const finish = `
     ${extra}
-    ${w.type === 'run' && w.advance && !w.edited ? `<p class="muted small">Moving on: ${esc(w.advance)}</p>` : ''}
     ${actions}
-    ${weekEndHtml(date)}
-    <details class="safety"><summary>When to stop</summary><p>${esc(about.safety)}</p></details>
-  `;
+    <p class="small links">${date === today && calWeek(today) >= 1 ? '<button class="link" data-go="repeat">Repeat this week…</button> · ' : ''}<button class="link" data-go="about" data-tab-to="about:plan">When to stop</button></p>`;
+  cards.push({ key: 'finish', label: locked ? 'Log' : 'Finish', html: finish, done });
+  return cards;
+}
+
+// One short line per exercise for the overview: "6+ · 5" rather than the full instructions.
+function glanceDetail(it, w) {
+  if (w.type === 'run' && !it.movement) return it.detail || '';
+  if (it.kind === 'working') return it.sets.map((x) => x.label).join(' · ');
+  if (it.kind === 'test') return 'rep check';
+  const d = it.detail || '';
+  return d.length <= 18 ? d : it.sets?.length ? `${it.sets.length} set${it.sets.length === 1 ? '' : 's'}` : '';
+}
+
+// What was logged, shown read-only on finished, skipped and past days.
+function lockedSummaryHtml(w, log) {
+  if (!log) return '';
+  const bits = [];
+  if (log.distance || log.time) bits.push([log.distance, log.time].filter(Boolean).join(' in '));
+  if (log.effort?.session) bits.push(`Felt ${log.effort.session === 'right' ? 'about right' : log.effort.session}`);
+  if (log.pain) bits.push('Pain noted');
+  return bits.length ? `<p>${esc(bits.join(' · '))}</p>` : '';
 }
 
 // "Took 42 min" from the first logged set to Finish. Left out if it looks wrong (over 4 hours).
@@ -299,12 +437,10 @@ function clockHtml(log) {
   return `
     <div class="clock">
       <div class="clock-t" data-clock ${running ? 'data-tick' : ''}>${formatSeconds(sec)}</div>
-      <div class="row2">
-        <button class="primary" data-act="clock">${running ? 'Pause' : sec ? 'Resume' : 'Start session timer'}</button>
-        ${!running && sec ? '<button data-act="clock-reset">Reset</button>' : ''}
-      </div>
-      <p class="small muted">Times the whole session, warm-up included. It keeps counting with the screen locked. Pausing fills in Time below.</p>
-    </div>`;
+      <button class="primary" data-act="clock">${running ? 'Pause' : sec ? 'Resume' : 'Start session timer'}</button>
+      ${!running && sec ? '<button data-act="clock-reset" aria-label="Reset timer">Reset</button>' : ''}
+    </div>
+    <p class="small muted clock-note">Times the whole session, even with the screen locked. Pause fills in Time on the Finish card.</p>`;
 }
 
 function cap(s) {
@@ -339,7 +475,7 @@ function liftItemHtml(it, log, locked, w) {
   const sets = (it.sets || []).map((s, i) => checkBtn(s.id, s.label, !!log?.checks?.[s.id], locked, s.long ? 'long' : '', logged[i])).join('');
   const countable = it.movement && !locked && w.date === today;
   const countBtn = countable
-    ? `<button class="wide count-open" data-count="${esc(it.id)}">${logged.length >= it.sets.length ? 'Counter · all sets saved' : `Count reps · set ${logged.length + 1} of ${it.sets.length}`}</button>`
+    ? `<button class="wide count-open ${logged.length >= it.sets.length ? '' : 'primary'}" data-count="${esc(it.id)}">${logged.length >= it.sets.length ? 'Counter · all sets saved' : `Count reps · set ${logged.length + 1} of ${it.sets.length}`}</button>`
     : '';
   const effort = log?.effort?.[it.id];
   const showInputs = it.inputs && !locked;
@@ -357,13 +493,13 @@ function liftItemHtml(it, log, locked, w) {
       : '';
   const standard = it.standard ? `<details><summary>Rep standard</summary><p>${esc(it.standard)}</p></details>` : '';
   return `
-    <div class="item">
+    <div class="item lift-card">
       <div class="item-h">
-        <span class="item-name">${esc(it.name)}</span>
+        <h2 class="item-name">${esc(it.name)}</h2>
         ${it.rest ? `<span class="muted small">Rest ${esc(it.rest)}</span>` : ''}
       </div>
       <p class="item-detail">${esc(it.detail)}</p>
-      ${sets ? `<div class="sets">${sets}</div>` : ''}
+      ${sets && it.kind !== 'test' ? `<div class="sets">${sets}</div>` : ''}
       ${countBtn}
       ${it.how ? `<p class="small muted">${esc(it.how)}</p>` : ''}
       ${it.testHint ? `<p class="small muted">${esc(it.testHint)}</p>` : ''}
@@ -382,29 +518,27 @@ function effortHtml(id, current) {
 
 function runExtraHtml(log) {
   return `
-    <div class="item">
-      <div class="item-h"><span class="item-name">Optional</span></div>
+    <div class="item finish-item">
       <div class="fields">
         <label>Distance<input data-log="distance" value="${esc(log?.distance)}" placeholder="e.g. 3.2 km" autocomplete="off" /></label>
         <label>Time<input data-log="time" value="${esc(log?.time)}" placeholder="e.g. 31:20" autocomplete="off" /></label>
       </div>
-      <p class="small muted">How it felt</p>
       ${effortHtml('session', log?.effort?.session)}
       ${painNoteHtml(log)}
     </div>`;
 }
 
 function liftExtraHtml(log) {
-  return `<div class="item">${painNoteHtml(log)}</div>`;
+  return `<div class="item finish-item">${painNoteHtml(log)}</div>`;
 }
 
 function painNoteHtml(log) {
   return `
     <label class="tick pain">
       <input type="checkbox" data-pain ${log?.pain ? 'checked' : ''} />
-      <span>Pain that changed how I moved, or got worse</span>
+      <span>Pain that changed how I moved</span>
     </label>
-    <label class="block">Note<textarea data-log="note" rows="2" maxlength="500" placeholder="Optional">${esc(log?.note)}</textarea></label>`;
+    <textarea data-log="note" rows="1" maxlength="500" placeholder="Note (optional)" aria-label="Note">${esc(log?.note)}</textarea>`;
 }
 
 // Monday: last week had trouble on runs and nothing has been logged this week.
@@ -463,7 +597,7 @@ function weekEndHtml(date) {
 }
 
 function practiceNoteHtml() {
-  return `<p class="callout">${esc(practice.banner)} <button class="link" data-go="setup">Setup</button> · <button class="link" data-go="about">Rep standards</button></p>`;
+  return `<p class="note">${esc(practice.banner)}</p>`;
 }
 
 // Saturday after the practice run, or Sunday Oct 18: how practice went, and the option to
@@ -530,50 +664,26 @@ function prepHtml(date) {
       <ul class="plain">${first.join('')}</ul>
       ${TEST ? '' : '<a class="button wide" href="?test">Try week 1 in testing mode</a>'}
     </div>
-    ${footerHtml()}
   `;
-}
-
-function footerHtml() {
-  return `
-    <footer class="foot">
-      <button class="link" data-go="progress">Progress</button>
-      <button class="link" data-go="history">History</button>
-      ${calWeek(today) >= 1 ? '<button class="link" data-go="repeat">Repeat week</button>' : ''}
-      <button class="link" data-go="setup">Setup</button>
-      <button class="link" data-go="about">About</button>
-    </footer>`;
 }
 
 function testBarHtml() {
   return `
     <div class="testbar" role="region" aria-label="Testing mode">
-      <div class="testbar-top">
-        <span><b>Testing mode</b> · today is ${esc(formatDate(today, { weekday: 'short', month: 'short', day: 'numeric' }))}</span>
-        <button class="link small" data-act="test-exit">Exit</button>
-      </div>
-      <div class="testbar-row">
-        <button data-act="test-day" data-step="-1" aria-label="Simulate previous day">‹ Day</button>
-        <button data-act="test-day" data-step="1" aria-label="Simulate next day">Day ›</button>
-        <button data-act="test-reset">Reset</button>
-      </div>
-      <p class="small">Practice data is kept apart from your real log.</p>
+      <span class="testbar-l"><b>Testing mode</b> · ${esc(formatDate(today, { weekday: 'short', month: 'short', day: 'numeric' }))}</span>
+      <button data-act="test-day" data-step="-1" aria-label="Simulate previous day">‹</button>
+      <button data-act="test-day" data-step="1" aria-label="Simulate next day">›</button>
+      <button data-act="test-reset">Reset</button>
+      <button data-act="test-exit">Exit</button>
     </div>`;
 }
 
 // ---------------------------------------------------------------- history
 
-function historyHtml() {
+function historyPage() {
   const entries = Object.entries(state.logs)
     .filter(([, l]) => !emptyLog(l))
     .sort(([a], [b]) => (a < b ? 1 : -1));
-  const ws = workingState(state, addDays(today, 1));
-  const name = { pull: 'Pull-ups', dip: 'Dips', push: 'Push-ups' };
-  const targets = MOVEMENTS.map((m) => {
-    const x = ws[m];
-    const val = x.mode === 'unknown' ? 'baseline not set' : x.mode === 'regression' ? `using easier version (max ${x.max})` : `sets of ${x.W}${x.max != null ? ` · max ${x.max}${x.estimated ? ' est.' : ''}` : ''}`;
-    return `<tr><th>${name[m]}</th><td>${esc(val)}</td></tr>`;
-  }).join('');
   const rows = entries.map(([d, l]) => {
     const w = l.snapshot || workoutFor(state, d);
     const status = l.status === 'done' ? 'Done' : l.status === 'skipped' ? 'Skipped' : 'In progress';
@@ -588,20 +698,25 @@ function historyHtml() {
       ${l.note ? `<span class="small">${esc(l.note)}</span>` : ''}
     </button></li>`;
   });
-  return `
-    ${backHtml()}
-    <h1>History</h1>
-    <table class="targets"><caption class="muted small">Current targets</caption>${targets}</table>
-    ${rows.length ? `<ul class="history">${rows.join('')}</ul>` : '<p class="muted">Nothing logged yet.</p>'}
-  `;
+  return {
+    header: simpleHeader('History'),
+    body: rows.length ? `<ul class="history">${rows.join('')}</ul>` : '<p class="muted">Nothing logged yet.</p>',
+  };
+}
+
+function targetsHtml() {
+  const ws = workingState(state, addDays(today, 1));
+  const name = { pull: 'Pull-ups', dip: 'Dips', push: 'Push-ups' };
+  const rows = MOVEMENTS.map((m) => {
+    const x = ws[m];
+    const val = x.mode === 'unknown' ? 'baseline not set' : x.mode === 'regression' ? `easier version (max ${x.max})` : `sets of ${x.W}${x.max != null ? ` · max ${x.max}${x.estimated ? ' est.' : ''}` : ''}`;
+    return `<tr><th>${name[m]}</th><td>${esc(val)}</td></tr>`;
+  }).join('');
+  return `<table class="targets"><caption class="muted small">Current targets</caption>${rows}</table>`;
 }
 
 function exerciseName(id, date) {
   return strength.movements[id]?.name || strength.accessories[id]?.name || workoutFor(state, date).items.find((i) => i.id === id)?.name || id;
-}
-
-function backHtml() {
-  return `<nav class="back"><button class="link" data-go-day="${today}">‹ Today</button></nav>`;
 }
 
 // ---------------------------------------------------------------- rep counter
@@ -616,12 +731,12 @@ function setTarget(it, i) {
   return reps ? `target ${reps.trim()}` : '';
 }
 
-function countHtml(date) {
+function countPage(date) {
   const w = workoutFor(state, date);
   const it = w.items.find((i) => i.id === view.item && i.movement);
   const log = state.logs[date];
   if (!it || date !== today || isFinished(log)) {
-    return `${backHtml()}<h1>Counter closed</h1><p class="muted">The counter is for today's open workout.</p>`;
+    return { header: simpleHeader('Counter closed'), body: `<p class="muted">The counter is for today's open workout.</p><button class="wide" data-go-day="${today}">Back to today</button>` };
   }
   if (counter?.date !== date || counter?.id !== it.id) counter = { date, id: it.id, n: 0, restFrom: null };
   const done = parseReps(log?.actual?.[it.id]?.reps);
@@ -643,23 +758,28 @@ function countHtml(date) {
          <button data-act="tap-minus" aria-label="Remove one rep">−1</button>
          <button class="primary" data-act="set-save" ${counter.n ? '' : 'disabled'}>Save set ${done.length + 1}</button>
        </div>
-       <p class="small muted center">${esc(hint)}</p>`;
-  return `
-    <nav class="back"><button class="link" data-act="count-close">‹ Back to workout</button></nav>
-    <h1>${esc(it.name)}</h1>
-    <p class="meta">${allDone ? `${total} of ${total} sets` : `Set ${done.length + 1} of ${total} · ${esc(setTarget(it, done.length))}`}</p>
-    ${chips ? `<div class="chips">${chips}</div>` : ''}
-    ${body}
-    ${done.length ? '<p class="center"><button class="link small" data-act="set-undo">Undo last saved set</button></p>' : ''}
-    ${it.standard ? `<details><summary>Rep standard</summary><p>${esc(it.standard)}</p></details>` : ''}
-  `;
+       <p class="small muted center hint">${esc(hint)}</p>`;
+  return {
+    tabs: false,
+    fill: true,
+    header: `<header class="top counter-top">
+      <button class="link" data-act="count-close">‹ Back to workout</button>
+      <h1>${esc(it.name)}</h1>
+      <p class="meta">${allDone ? `${total} of ${total} sets` : `Set ${done.length + 1} of ${total} · ${esc(setTarget(it, done.length))}`}</p>
+      ${chips ? `<div class="chips">${chips}</div>` : ''}
+    </header>`,
+    body: `<div class="counter ${allDone ? 'all-done' : ''}">
+      ${body}
+      ${done.length ? '<p class="center undo"><button class="link small" data-act="set-undo">Undo last saved set</button></p>' : ''}
+    </div>`,
+  };
 }
 
 // ---------------------------------------------------------------- progress
 
-function progressHtml() {
+function progressPage() {
   if (today < WEEK1) {
-    return `${backHtml()}<h1>Progress</h1><p class="muted">Progress starts with week 1 on Sunday, October 18. The practice week isn't counted; its logs are in History.</p>`;
+    return { header: simpleHeader('Progress'), body: `<p class="muted">Progress starts with week 1 on Sunday, October 18. The practice week isn't counted; its logs are in History.</p>${targetsHtml()}` };
   }
   const pr = progress(state, today);
   const c = calWeek(today);
@@ -678,17 +798,17 @@ function progressHtml() {
       ['Total reps logged', String(x.total)],
       ['Goal', String(goal[m])],
     ].filter(Boolean);
-    const points = x.full.map((s) => ({ date: s.date, y: s.best, mark: s.test }));
+    // Lifting days only: the easy push-up sets after runs would make the line zigzag.
+    const points = x.full.filter((s) => dayType(s.date) === 'lift').map((s) => ({ date: s.date, y: s.best, mark: s.test }));
     const chart = points.length
       ? lineChart(points, { from: START, to, label: `${name[m]}: best set per session` })
       : '<p class="small muted">Log reps to see a chart.</p>';
     const easier = x.easierSessions ? `<p class="small muted">Plus ${x.easierSessions} session${x.easierSessions === 1 ? '' : 's'} of the easier version, not counted above.</p>` : '';
-    return `
-      <h2>${name[m]}</h2>
-      <table class="targets">${rows.map(([k, v]) => `<tr><th>${k}</th><td>${esc(v)}</td></tr>`).join('')}</table>
+    return panel('lift', m, `
+      <table class="targets compact">${rows.map(([k, v]) => `<tr><th>${k}</th><td>${esc(v)}</td></tr>`).join('')}</table>
       ${chart}
       ${points.length ? '<p class="small muted">Best set per session. Filled dots are rep checks.</p>' : ''}
-      ${easier}`;
+      ${easier}`);
   }).join('');
 
   const head = ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d) => `<span class="cg-h">${d}</span>`).join('');
@@ -711,31 +831,45 @@ function progressHtml() {
       <span class="small muted">${esc(r.planLabel || r.title)}${r.effort ? ` · felt ${r.effort === 'right' ? 'about right' : r.effort}` : ''}${r.pain ? ' · pain noted' : ''}</span>
     </button></li>`).join('');
 
-  return `
-    ${backHtml()}
-    <h1>Progress</h1>
+  const runsDue = pr.runs.filter((r) => r.date < today || r.status).length;
+  const summary = `
     <p class="lede">Week ${c}. ${pr.done} of ${pr.due} workouts done so far${pr.skipped ? `, ${pr.skipped} skipped` : ''}.</p>
-    <p class="small muted">The fairest before-and-after is the optional rep checks in weeks 5 and 11, done the same way each time.</p>
-    <h2>Consistency</h2>
-    <div class="cgrid"><span></span>${head}${grid}</div>
-    <p class="small muted">✓ done · – skipped · R/L run or lift not logged · blank rest. Tap a day to open it.</p>
-    ${moves}
-    <h2>Running</h2>
+    ${targetsHtml()}
     <table class="targets">
-      <tr><th>Runs done</th><td>${pr.runsDone} of ${pr.runs.filter((r) => r.date < today || r.status).length}</td></tr>
+      <caption class="muted small">So far</caption>
+      ${MOVEMENTS.map((m) => `<tr><th>${name[m]}</th><td>${pr.movements[m].total} reps logged · goal ${goal[m]}</td></tr>`).join('')}
+      <tr><th>Running</th><td>${pr.runsDone} of ${runsDue} runs${pr.runSeconds ? ` · ${formatSeconds(pr.runSeconds)}` : ''}</td></tr>
+    </table>
+    <p class="small muted">The fairest before-and-after is the optional rep checks in weeks 5 and 11, done the same way each time.</p>`;
+  const calendar = `
+    <div class="cgrid" style="--rows: ${pr.weeks.length + 1}"><span></span>${head}${grid}</div>
+    <p class="small muted">✓ done · – skipped · R/L not logged · blank rest. Tap a day to open it.</p>`;
+  const lifts = `${segTabs('lift', MOVEMENTS.map((m) => [m, name[m]]))}${moves}`;
+  const runsTab = `
+    <table class="targets compact">
+      <tr><th>Runs done</th><td>${pr.runsDone} of ${runsDue}</td></tr>
       <tr><th>Time logged</th><td>${pr.runSeconds ? formatSeconds(pr.runSeconds) : '—'}</td></tr>
       <tr><th>Longest session</th><td>${pr.longestRun ? formatSeconds(pr.longestRun) : '—'}</td></tr>
       <tr><th>Running week now</th><td>${esc(runPlanWeek(runWeek(state, c)).title)}</td></tr>
     </table>
-    ${runs ? `<ul class="history">${runs}</ul>` : '<p class="small muted">Use the session timer on run days, or type a time, to track runs here.</p>'}
-    <h2>By week</h2>
-    <table class="weeks"><tr><th>Wk</th><th>Done</th><th>Pull</th><th>Dip</th><th>Push</th><th>Run</th></tr>${weekRows}</table>
-  `;
+    ${runs ? `<ul class="history">${runs}</ul>` : '<p class="small muted">Use the session timer on run days, or type a time, to track runs here.</p>'}`;
+  const weeksTab = `<table class="weeks"><tr><th>Wk</th><th>Done</th><th>Pull</th><th>Dip</th><th>Push</th><th>Run</th></tr>${weekRows}</table>`;
+
+  return {
+    header: simpleHeader('Progress', segTabs('progress', [['summary', 'Summary'], ['calendar', 'Days'], ['lifts', 'Lifts'], ['runs', 'Runs'], ['weeks', 'Weeks']])),
+    body: [
+      panel('progress', 'summary', summary),
+      panel('progress', 'calendar', calendar),
+      panel('progress', 'lifts', lifts),
+      panel('progress', 'runs', runsTab),
+      panel('progress', 'weeks', weeksTab),
+    ].join(''),
+  };
 }
 
 // ---------------------------------------------------------------- repeat
 
-function repeatHtml() {
+function repeatPage() {
   const c = calWeek(today);
   const rows = ['run', 'lift'].map((track) => {
     const p = track === 'run' ? runWeek(state, c) : liftWeek(state, c);
@@ -750,13 +884,13 @@ function repeatHtml() {
       </div>`;
   });
   const pr = projections(state);
-  return `
-    ${backHtml()}
-    <h1>Repeat this week</h1>
-    <p class="lede">Repeating a week is normal. Later weeks move back by one week rather than being squeezed in.</p>
+  return {
+    header: simpleHeader('Repeat this week'),
+    body: `
+    <p class="small">Repeating a week is normal. Later weeks move back by one week rather than being squeezed in.</p>
     ${rows.join('')}
-    ${timelineHtml(pr)}
-  `;
+    ${timelineHtml(pr)}`,
+  };
 }
 
 function timelineHtml(pr) {
@@ -770,31 +904,32 @@ function timelineHtml(pr) {
 
 // ---------------------------------------------------------------- edit
 
-function editHtml(date) {
+function editPage(date) {
   const w = workoutFor(state, date);
   const planned = workoutFor({ ...state, edits: {} }, date);
   if (date < today || planned.type === 'rest' || planned.type === 'prep') {
-    return `${backHtml()}<h1>Can't edit this day</h1><p class="muted">Only today and future run or lifting days can be edited.</p>`;
+    return { header: simpleHeader("Can't edit this day"), body: '<p class="muted">Only today and future run or lifting days can be edited.</p>' };
   }
   const isEdited = !!state.edits[date];
   const text = w.type === 'rest' ? itemsToText(planned) : itemsToText(w);
-  return `
-    <nav class="back"><button class="link" data-go-day="${date}">‹ Back</button></nav>
-    <h1>Edit ${esc(formatDate(date, { weekday: 'long', month: 'short', day: 'numeric' }))}</h1>
-    <p class="muted small">This changes only this date. It stays a ${planned.type === 'run' ? 'run' : 'lifting'} day or becomes a rest day, so runs never land on consecutive days.</p>
+  return {
+    header: `<header class="top"><button class="link" data-go-day="${date}">‹ Back</button><h1 class="screen-h">Edit ${esc(formatDate(date, { weekday: 'short', month: 'short', day: 'numeric' }))}</h1></header>`,
+    body: `
+    <p class="muted small">Changes only this date. It stays a ${planned.type === 'run' ? 'run' : 'lifting'} day or becomes a rest day. Edited days don't drive automatic progression.</p>
     <form class="form" data-form="edit">
-      <label class="block">Title<input name="title" value="${esc(w.type === 'rest' ? planned.title : w.title)}" maxlength="120" /></label>
-      <label class="block">Minutes<input name="minutes" inputmode="numeric" value="${esc(w.minutes || planned.minutes || '')}" /></label>
-      <label class="block">Exercises, one per line, as "Name | sets, reps or time"<textarea name="items" rows="9">${esc(text)}</textarea></label>
-      <label class="block">Note<textarea name="note" rows="2" maxlength="500">${esc(state.edits[date]?.note || '')}</textarea></label>
+      <div class="fields">
+        <label>Title<input name="title" value="${esc(w.type === 'rest' ? planned.title : w.title)}" maxlength="120" /></label>
+        <label class="narrow">Minutes<input name="minutes" inputmode="numeric" value="${esc(w.minutes || planned.minutes || '')}" /></label>
+      </div>
+      <label class="block">Exercises, one per line: "Name | sets, reps or time"<textarea name="items" rows="6">${esc(text)}</textarea></label>
+      <label class="block">Note<textarea name="note" rows="1" maxlength="500">${esc(state.edits[date]?.note || '')}</textarea></label>
       <button class="primary wide" type="submit">Save changes</button>
     </form>
     <div class="row2">
       <button data-act="make-rest" data-date="${date}">Make it a rest day</button>
       ${isEdited ? `<button data-act="restore" data-date="${date}">Restore plan</button>` : ''}
-    </div>
-    <p class="muted small">After editing, rep targets for this day aren't used for automatic progression.</p>
-  `;
+    </div>`,
+  };
 }
 
 // ---------------------------------------------------------------- setup
@@ -812,46 +947,45 @@ function triField(key, label) {
   return `<fieldset class="tri"><legend>${label}</legend><div class="seg">${opt('true', 'Yes')}${opt('false', 'No')}${opt('null', 'Not sure')}</div></fieldset>`;
 }
 
-function setupHtml() {
+function setupPage() {
   const s = state.setup;
   const suggest = s.jogMinutes == null ? 'Start at week 1 unless you know you can already jog comfortably.' : s.jogMinutes >= 20 ? 'You could start at week 5 or 6, but week 4 is a safer first step if you are unsure.' : s.jogMinutes >= 8 ? 'Week 3 or 4 is a reasonable start. Week 1 is never wrong.' : 'Start at week 1.';
   const weeks = Array.from({ length: 9 }, (_, i) => i + 1).map((n) => `<option value="${n}" ${s.runStartWeek === n ? 'selected' : ''}>Week ${n}</option>`).join('');
   const started = today >= START;
-  return `
-    ${backHtml()}
-    <h1>Setup</h1>
-    <p class="lede">Everything is optional. Leave a box empty for "I don't know yet". Empty is never treated as zero, and no max test is required.</p>
-    ${flash ? `<p class="flash">${esc(flash)}</p>` : ''}
+  return {
+    header: simpleHeader('Setup', segTabs('setup', [['reps', 'Reps'], ['run', 'Running'], ['gear', 'Gear'], ['notes', 'Notes'], ['data', 'Backup']])),
+    body: `
     <form class="form" data-form="setup">
-      <h2>Current clean reps</h2>
-      <p class="small muted">Count only reps that meet the standards in About. Your best recent guess is fine.</p>
-      ${numField('pull', 'Strict pull-ups')}
-      ${numField('dip', 'Parallel-bar dips')}
-      ${numField('push', 'Strict push-ups')}
-      <h2>Running</h2>
-      ${numField('jogMinutes', 'Comfortable continuous jogging (minutes)')}
-      <label class="block">Start Couch to 5K at
-        <select name="runStartWeek">${weeks}</select>
-        <span class="small muted">${esc(suggest)}${started ? ' Changing this after you start shifts every run week.' : ''}</span>
-      </label>
-      <h2>Equipment</h2>
-      ${triField('bar', 'Pull-up bar')}
-      ${triField('dipBars', 'Parallel bars or dip station')}
-      ${triField('bands', 'Resistance bands')}
-      ${triField('weights', 'Dumbbells or kettlebell')}
-      <h2>Pain or limitations</h2>
-      <label class="block"><span class="small muted">Shown at the top of each workout as a reminder. Not used to diagnose anything.</span>
-        <textarea name="limitations" rows="3" maxlength="500">${esc(s.limitations)}</textarea></label>
-      <button class="primary wide" type="submit">Save setup</button>
+      ${panel('setup', 'reps', `
+        <p class="small muted">Everything is optional. Leave a box empty for "I don't know yet"; empty is never treated as zero. Count only reps that meet the standards in About.</p>
+        ${numField('pull', 'Strict pull-ups')}
+        ${numField('dip', 'Parallel-bar dips')}
+        ${numField('push', 'Strict push-ups')}`)}
+      ${panel('setup', 'run', `
+        ${numField('jogMinutes', 'Comfortable continuous jogging (minutes)')}
+        <label class="block">Start Couch to 5K at
+          <select name="runStartWeek">${weeks}</select>
+          <span class="small muted">${esc(suggest)}${started ? ' Changing this after you start shifts every run week.' : ''}</span>
+        </label>`)}
+      ${panel('setup', 'gear', `
+        ${triField('bar', 'Pull-up bar')}
+        ${triField('dipBars', 'Parallel bars or dip station')}
+        ${triField('bands', 'Resistance bands')}
+        ${triField('weights', 'Dumbbells or kettlebell')}
+        ${triField('parallettes', 'Parallettes')}`)}
+      ${panel('setup', 'notes', `
+        <label class="block">Pain or limitations<span class="small muted">Shown at the top of each workout as a reminder. Not used to diagnose anything.</span>
+          <textarea name="limitations" rows="4" maxlength="500">${esc(s.limitations)}</textarea></label>`)}
+      <div class="panel-save" ${tabs.setup === 'data' ? 'hidden' : ''}><button class="primary wide" type="submit">Save setup</button></div>
     </form>
-    <h2>Back up your data</h2>
-    <p class="small muted">Everything is stored only on this device, in this app. There's no account and no sync. Export a backup now and then, for example before changing phones.</p>
-    <div class="row2">
-      <button data-act="export">Export JSON</button>
-      <label class="button">Import JSON<input type="file" accept="application/json,.json" data-import hidden /></label>
-    </div>
-    ${pendingImport ? importConfirmHtml() : ''}
-  `;
+    ${panel('setup', 'data', `
+      <p class="small muted">Everything is stored only on this device, in this app. There's no account and no sync. Export a backup now and then, for example before changing phones.</p>
+      <div class="row2">
+        <button data-act="export">Export JSON</button>
+        <label class="button">Import JSON<input type="file" accept="application/json,.json" data-import hidden /></label>
+      </div>
+      ${pendingImport ? importConfirmHtml() : ''}`)}`,
+  };
 }
 
 function importConfirmHtml() {
@@ -865,46 +999,79 @@ function importConfirmHtml() {
 
 // ---------------------------------------------------------------- about
 
-function aboutHtml() {
+function aboutPage() {
   const mv = strength.movements;
   const pr = projections(state);
-  return `
-    ${backHtml()}
-    <h1>About the plan</h1>
-    <p class="lede">Weeks run Sunday through Saturday. Runs on Monday, Wednesday and Saturday. Strength on Tuesday and Thursday. Rest on Sunday and Friday. The first workout is Monday, October 19, 2026. Target date Thursday, December 31, 2026.</p>
-    <h2>When to stop</h2>
-    <p>${esc(about.safety)}</p>
-    <h2>Rep standards</h2>
-    ${MOVEMENTS.map((m) => `<p><b>${esc(mv[m].name)}.</b> ${esc(mv[m].standard)}</p>`).join('')}
-    <h2>How lifting progresses</h2>
-    <p>${esc(strength.progression.rule)}</p>
-    <p>${esc(strength.progression.unknown)}</p>
-    <p>If your clean max is below ${mv.pull.fullFrom} pull-ups, ${mv.dip.fullFrom} dips or ${mv.push.fullFrom} push-ups, you train an easier version until a check-in shows you're ready for the full movement.</p>
-    <h2>Running</h2>
-    <p>${esc(running.about)}</p>
-    <h2>Practice week</h2>
-    <p>${esc(practice.about)}</p>
-    ${timelineHtml(pr)}
-    <h2>From research</h2>
-    <ul class="sources">${about.researched.map((r) => `<li>${esc(r.claim)}<br /><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.source)}</a></li>`).join('')}</ul>
-    <h2>My programming choices</h2>
-    <p class="small muted">These aren't from the sources above. Change them in <code>src/plan/*.json</code>.</p>
-    <ul class="plain">${about.choices.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>
-    <h2>Your data</h2>
-    <p>Setup, edits and logs are saved only on this device. No sync, no account, no analytics. Use Export in Setup to back up.</p>
-  `;
+  return {
+    reading: true,
+    header: simpleHeader('About the plan', segTabs('about', [['plan', 'Plan'], ['standards', 'Reps'], ['lifting', 'Lifting'], ['running', 'Running'], ['sources', 'Sources']])),
+    body: [
+      panel('about', 'plan', `
+        <p>Weeks run Sunday through Saturday. Runs Monday, Wednesday and Saturday, each followed by short push-up practice; strength Sunday, Tuesday and Thursday; rest Friday. First workout Monday, October 19, 2026 (Sunday lifting starts October 25). Target date Thursday, December 31, 2026.</p>
+        <h2>When to stop</h2>
+        <p>${esc(about.safety)}</p>
+        <h2>Your data</h2>
+        <p>Saved only on this device. No sync, no account, no analytics. Export in Setup to back up.</p>`),
+      panel('about', 'standards', `<p class="small muted">What counts as one clean rep. Log the same kind of rep every time.</p>${MOVEMENTS.map((m, i) => `<details name="std" ${i === 0 ? 'open' : ''}><summary>${esc(mv[m].name)}</summary><p>${esc(mv[m].standard)}</p></details>`).join('')}`),
+      panel('about', 'lifting', `
+        <p>${esc(strength.progression.rule)}</p>
+        <p>${esc(strength.progression.unknown)}</p>
+        <p>If your clean max is below ${mv.pull.fullFrom} pull-ups, ${mv.dip.fullFrom} dips or ${mv.push.fullFrom} push-ups, you train an easier version until a check-in shows you're ready for the full movement.</p>`),
+      panel('about', 'running', `
+        <p>${esc(running.about)}</p>
+        <p><b>Practice week.</b> ${esc(practice.about)}</p>
+        ${timelineHtml(pr)}`),
+      panel('about', 'sources', `
+        <details name="src" open><summary>From research (${about.researched.length})</summary>
+          <ul class="sources">${about.researched.map((r) => `<li>${esc(r.claim)}<br /><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.source)}</a></li>`).join('')}</ul></details>
+        <details name="src"><summary>The app's own programming choices (${about.choices.length})</summary>
+          <p class="small muted">Not from the sources. Change them in <code>src/plan/*.json</code>.</p>
+          <ul class="plain">${about.choices.map((c) => `<li>${esc(c)}</li>`).join('')}</ul></details>`),
+    ].join(''),
+  };
 }
 
 // ---------------------------------------------------------------- events
 
 function bind() {
-  on(root, 'click', '[data-go-day]', (e, el) => {
-    view = { name: 'day', date: el.dataset.goDay };
-    flash = '';
-    openLogs.clear();
-    render();
+  on(root, 'click', '[data-go-day]', (e, el) => goDay(el.dataset.goDay));
+  on(root, 'click', '[data-go]', (e, el) => {
+    if (el.dataset.tabTo) {
+      const [group, k] = el.dataset.tabTo.split(':');
+      tabs[group] = k;
+    }
+    go(el.dataset.go, view.date || today);
   });
-  on(root, 'click', '[data-go]', (e, el) => go(el.dataset.go, view.date || today));
+
+  // Cards within a day: arrows, or swipe left and right.
+  on(root, 'click', '[data-card]', (e, el) => showCard(Number(el.dataset.card)));
+  on(root, 'touchstart', '.pane.deck', (e) => {
+    const t = e.touches[0];
+    swipe = e.touches.length === 1 && !e.target.closest('input, textarea, select') ? { x: t.clientX, y: t.clientY } : null;
+  }, { passive: true });
+  on(root, 'touchend', '.pane.deck', (e) => {
+    if (!swipe) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - swipe.x;
+    const dy = t.clientY - swipe.y;
+    swipe = null;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) showCard(view.card + (dx < 0 ? 1 : -1));
+  }, { passive: true });
+
+  // Tabs switch panels in place: no re-render, so half-filled forms keep their values.
+  on(root, 'click', '[data-tab]', (e, el) => {
+    const [group, k] = el.dataset.tab.split(':');
+    tabs[group] = k;
+    for (const b of root.querySelectorAll(`[data-tab^="${group}:"]`)) {
+      const sel = b === el;
+      b.classList.toggle('on', sel);
+      b.setAttribute('aria-selected', sel);
+    }
+    for (const p of root.querySelectorAll(`[data-panel^="${group}:"]`)) p.hidden = p.dataset.panel !== `${group}:${k}`;
+    const save = root.querySelector('.panel-save');
+    if (save && group === 'setup') save.hidden = k === 'data';
+    if (group !== 'lift') root.querySelector('.pane').scrollTop = 0;
+  });
 
   // Set buttons (lifting) and checkboxes (runs)
   on(root, 'click', 'button[data-check]', (e, el) => {
@@ -949,9 +1116,8 @@ function bind() {
     else openLogs.add(id);
   });
   on(root, 'click', '[data-count]', (e, el) => {
-    view = { name: 'count', date: view.date, item: el.dataset.count };
+    view = { name: 'count', date: view.date, card: view.card, item: el.dataset.count };
     render();
-    root.scrollTop = 0;
   });
   on(root, 'click', '[data-act]', (e, el) => act(el.dataset.act, el));
 
@@ -970,12 +1136,11 @@ function bind() {
       push: n('push'),
       jogMinutes: n('jogMinutes'),
       runStartWeek: Number(f.get('runStartWeek')) || 1,
-      equipment: { bar: tri('bar'), dipBars: tri('dipBars'), bands: tri('bands'), weights: tri('weights') },
+      equipment: { bar: tri('bar'), dipBars: tri('dipBars'), bands: tri('bands'), weights: tri('weights'), parallettes: tri('parallettes') },
       limitations: String(f.get('limitations') || '').slice(0, 500),
     };
     flash = 'Setup saved.';
     commit();
-    root.scrollTop = 0;
   });
 
   on(root, 'submit', 'form[data-form="edit"]', (e, form) => {
@@ -990,7 +1155,7 @@ function bind() {
     };
     state = migrate(state);
     save(state);
-    view = { name: 'day', date: view.date };
+    view = { name: 'day', date: view.date, card: null };
     flash = 'Workout edited for this date.';
     render();
   });
@@ -1021,9 +1186,9 @@ async function act(name, el) {
       l.updatedAt = new Date().toISOString();
       l.finishedAt = l.updatedAt;
       saveSoon.flush();
-      flash = l.pain ? 'Saved. You noted pain: see "When to stop" below, and hold back next time.' : 'Saved.';
+      flash = l.pain ? 'Saved. You noted pain: read "When to stop" in About, and hold back next time.' : 'Saved.';
+      view.card = 0; // the overview shows the finished state and any week recap
       commit();
-      root.scrollTop = 0;
       requestPersist().then(() => save(state));
       break;
     }
@@ -1048,14 +1213,14 @@ async function act(name, el) {
     case 'make-rest':
       state.edits[el.dataset.date] = { rest: true };
       save(state);
-      view = { name: 'day', date: el.dataset.date };
+      view = { name: 'day', date: el.dataset.date, card: null };
       flash = 'Changed to a rest day.';
       render();
       break;
     case 'restore':
       delete state.edits[el.dataset.date];
       save(state);
-      view = { name: 'day', date: el.dataset.date };
+      view = { name: 'day', date: el.dataset.date, card: null };
       flash = 'Planned workout restored.';
       render();
       break;
@@ -1155,17 +1320,13 @@ async function act(name, el) {
     case 'count-close':
       counter = null;
       openLogs.add(view.item); // show the reps just counted
-      view = { name: 'day', date };
+      view = { name: 'day', date, card: null, cardKey: view.item };
       render();
       break;
     case 'test-day':
       today = addDays(today, Number(el.dataset.step));
       setTestToday(today);
-      view = { name: 'day', date: today };
-      flash = '';
-      openLogs.clear();
-      render();
-      root.scrollTop = 0;
+      goDay(today);
       break;
     case 'test-reset':
       clearTest();
@@ -1173,7 +1334,7 @@ async function act(name, el) {
       state = emptyState();
       save(state);
       today = testToday();
-      view = { name: 'day', date: today };
+      view = { name: 'day', date: today, card: null };
       flash = 'Test data cleared. Back to Monday, October 19.';
       render();
       break;

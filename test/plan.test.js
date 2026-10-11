@@ -57,7 +57,7 @@ test('weeks run Sunday through Saturday', () => {
 });
 
 test('every weekday has the fixed type for a whole year, even with repeats and edits elsewhere', () => {
-  const expected = { 0: 'rest', 1: 'run', 2: 'lift', 3: 'run', 4: 'lift', 5: 'rest', 6: 'run' };
+  const expected = { 0: 'lift', 1: 'run', 2: 'lift', 3: 'run', 4: 'lift', 5: 'rest', 6: 'run' };
   let s = repeatWeek(repeatWeek(fresh(), 'run', 2), 'lift', 4);
   for (let i = 0; i < 365; i++) {
     const d = addDays(START, i);
@@ -77,7 +77,7 @@ test('first run and first lift show the right content', () => {
   const run = workoutFor(fresh(), '2026-10-19');
   assert.equal(run.type, 'run');
   assert.equal(run.planWeek, 1);
-  assert.deepEqual(run.items.map((i) => i.id), ['warmup', 'main', 'cooldown']);
+  assert.deepEqual(run.items.map((i) => i.id), ['warmup', 'main', 'cooldown', 'push']);
   assert.match(run.items[1].steps.join(' '), /Run 1 min, walk 90 sec/);
   const lift = workoutFor(fresh(), '2026-10-20');
   assert.equal(lift.type, 'lift');
@@ -343,7 +343,8 @@ test('practice week Oct 11-17 is easier, same weekdays, and week 1 is unchanged'
   assert.equal(isPractice('2026-10-18'), false);
   assert.equal(calWeek('2026-10-14'), 0);
   const types = ['2026-10-11', '2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16', '2026-10-17'].map((d) => workoutFor(fresh(), d).type);
-  assert.deepEqual(types, ['rest', 'run', 'lift', 'run', 'lift', 'rest', 'run']);
+  assert.deepEqual(types, ['lift', 'run', 'lift', 'run', 'lift', 'rest', 'run']);
+  assert.equal(workoutFor(fresh(), '2026-10-11').items[0].kind, 'practice', 'practice Sunday is easy sets');
   const run = workoutFor(fresh(), '2026-10-12');
   assert.equal(run.title, 'Practice run');
   assert.ok(run.minutes < workoutFor(fresh(), '2026-10-19').minutes);
@@ -361,4 +362,43 @@ test('practice logs never change week 1 targets unless used as starting numbers'
   assert.deepEqual(practiceChecks(s), { pull: 9, dip: 12 });
   s.setup.pull = 9;
   assert.equal(workingState(s, '2026-10-20').pull.W, 5);
+});
+
+// ---------- three lifting days ----------
+
+test('Sunday Oct 18 stays rest so the first workout is Monday; Sunday lifting starts Oct 25', () => {
+  assert.equal(dayType('2026-10-18'), 'rest');
+  const c = workoutFor(fresh(), '2026-10-25');
+  assert.equal(c.type, 'lift');
+  assert.equal(c.title, 'Strength C');
+  assert.deepEqual(c.items.slice(0, 3).map((i) => i.movement), ['push', 'pull', 'dip'], 'push-ups first on Sunday');
+});
+
+test('more sets: A 5/4/3, B long set + 3 each, C push-up volume', () => {
+  const s = fresh();
+  s.setup = { ...s.setup, pull: 8, dip: 10, push: 20 };
+  const sets = (d) => Object.fromEntries(workoutFor(s, d).items.filter((i) => i.movement).map((i) => [i.movement, i.sets.length]));
+  assert.deepEqual(sets('2026-10-27'), { pull: 5, dip: 4, push: 3 });
+  assert.deepEqual(sets('2026-10-29'), { pull: 4, push: 4, dip: 3 });
+  assert.deepEqual(sets('2026-10-25'), { push: 5, pull: 4, dip: 3 });
+  assert.deepEqual(sets('2026-11-15'), { push: 2, pull: 2, dip: 2 }, 'check-in week Sunday is light');
+});
+
+test('progression needs all three sessions in a week to be clean', () => {
+  const s = fresh();
+  s.setup = { ...s.setup, pull: 10 };
+  const clean = { status: 'done', checks: Object.fromEntries([0, 1, 2, 3, 4].map((i) => [`pull:${i}`, true])), actual: {} };
+  for (const d of ['2026-10-25', '2026-10-27', '2026-10-29']) s.logs[d] = clean;
+  assert.equal(workingState(s, '2026-11-01').pull.W, 7, '6 + 1 after a clean week');
+  s.logs['2026-10-29'] = { status: 'skipped' };
+  assert.equal(workingState(s, '2026-11-01').pull.W, 6, 'a skipped session holds the target');
+});
+
+test('run days add easy push-up practice at half the working target', () => {
+  const s = fresh();
+  s.setup = { ...s.setup, push: 20 };
+  const push = workoutFor(s, '2026-10-21').items.find((i) => i.movement === 'push');
+  assert.equal(push.detail, '2 × 6'); // working 12
+  assert.equal(push.addon, true);
+  assert.equal(workoutFor(fresh(), '2026-10-12').items.some((i) => i.movement), false, 'practice week runs stay plain');
 });

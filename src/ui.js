@@ -8,12 +8,12 @@ export function reset(root) {
   controllers.get(root)?.abort();
   controllers.set(root, new AbortController());
 }
-export function on(root, event, selector, handler) {
+export function on(root, event, selector, handler, options = {}) {
   if (!controllers.has(root)) reset(root);
   root.addEventListener(event, (e) => {
     const target = e.target.closest(selector);
     if (target && root.contains(target)) handler(e, target);
-  }, { signal: controllers.get(root).signal });
+  }, { ...options, signal: controllers.get(root).signal });
 }
 
 export function debounce(fn, ms) {

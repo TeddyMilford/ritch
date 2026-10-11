@@ -2,26 +2,59 @@
   "start": "2026-10-19",
   "target": "2026-12-31",
   "timezone": "America/Chicago",
-  "schedule": { "1": "run", "2": "lift", "3": "run", "4": "lift", "5": "rest", "6": "run", "0": "rest" },
+  "schedule": {
+    "0": "lift",
+    "1": "run",
+    "2": "lift",
+    "3": "run",
+    "4": "lift",
+    "5": "rest",
+    "6": "run"
+  },
   "rest": {
     "title": "Rest day",
     "text": "Nothing is scheduled. An easy 20-30 min walk is optional if you feel like moving."
   },
   "safety": "Stop the exercise or run if you get joint pain, pain that is sharp or keeps getting worse in one spot, or pain that changes how you move or makes you limp. Normal muscle tiredness and mild soreness the next day are expected. If pain lasts beyond a few days or keeps coming back, have it checked by a clinician. This app can't diagnose injuries.",
   "researched": [
-    { "claim": "Weeks 1-9 of running, the 5 min walking warm-up and cool-down, a rest day between runs, and permission to repeat weeks.", "source": "NHS: Couch to 5K running plan", "url": "https://www.nhs.uk/better-health/get-active/get-running-with-couch-to-5k/couch-to-5k-running-plan/" },
-    { "claim": "Resistance training at least twice a week; 2-3 sets per exercise for strength; training to failure isn't necessary, and stopping about 2-3 reps short is reasonable; progression mainly matters for continued gains.", "source": "ACSM Position Stand (2026): Resistance Training Prescription for Muscle Function, Hypertrophy, and Physical Performance in Healthy Adults. Med Sci Sports Exerc 58(4):851-872", "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12965823/" },
-    { "claim": "Progress only after you can do 1-2 reps more than the current target.", "source": "ACSM Position Stand (2009): Progression Models in Resistance Training for Healthy Adults. Med Sci Sports Exerc 41(3)", "url": "https://pubmed.ncbi.nlm.nih.gov/19204579/" },
-    { "claim": "Adults should do muscle-strengthening activity, such as push-ups, on at least 2 days a week.", "source": "U.S. HHS: Physical Activity Guidelines for Americans, 2nd ed.", "url": "https://odphp.health.gov/our-work/physical-activity/current-guidelines/top-10-things-know" },
-    { "claim": "Injury risk rises when a single run is more than about 10% longer than your longest run of the previous 30 days.", "source": "Frandsen et al. (2025): How much running is too much? Identifying high-risk running sessions in a 5200-person cohort study. Br J Sports Med 59(17)", "url": "https://doi.org/10.1136/bjsports-2024-109380" },
-    { "claim": "When running pain means stopping and seeing a doctor.", "source": "NHS: Knee pain and other running injuries", "url": "https://www.nhs.uk/live-well/exercise/running-and-aerobic-exercises/knee-pain-and-other-running-injuries/" }
+    {
+      "claim": "Weeks 1-9 of running, the 5 min walking warm-up and cool-down, a rest day between runs, and permission to repeat weeks.",
+      "source": "NHS: Couch to 5K running plan",
+      "url": "https://www.nhs.uk/better-health/get-active/get-running-with-couch-to-5k/couch-to-5k-running-plan/"
+    },
+    {
+      "claim": "Resistance training at least twice a week; 2-3 sets per exercise for strength; training to failure isn't necessary, and stopping about 2-3 reps short is reasonable; progression mainly matters for continued gains.",
+      "source": "ACSM Position Stand (2026): Resistance Training Prescription for Muscle Function, Hypertrophy, and Physical Performance in Healthy Adults. Med Sci Sports Exerc 58(4):851-872",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12965823/"
+    },
+    {
+      "claim": "Progress only after you can do 1-2 reps more than the current target.",
+      "source": "ACSM Position Stand (2009): Progression Models in Resistance Training for Healthy Adults. Med Sci Sports Exerc 41(3)",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/19204579/"
+    },
+    {
+      "claim": "Adults should do muscle-strengthening activity, such as push-ups, on at least 2 days a week.",
+      "source": "U.S. HHS: Physical Activity Guidelines for Americans, 2nd ed.",
+      "url": "https://odphp.health.gov/our-work/physical-activity/current-guidelines/top-10-things-know"
+    },
+    {
+      "claim": "Injury risk rises when a single run is more than about 10% longer than your longest run of the previous 30 days.",
+      "source": "Frandsen et al. (2025): How much running is too much? Identifying high-risk running sessions in a 5200-person cohort study. Br J Sports Med 59(17)",
+      "url": "https://doi.org/10.1136/bjsports-2024-109380"
+    },
+    {
+      "claim": "When running pain means stopping and seeing a doctor.",
+      "source": "NHS: Knee pain and other running injuries",
+      "url": "https://www.nhs.uk/live-well/exercise/running-and-aerobic-exercises/knee-pain-and-other-running-injuries/"
+    }
   ],
   "choices": [
     "Weeks 10-11 and the ongoing running weeks are my own proposal. They consolidate the 30 min run, add short steady efforts, and lengthen the long run by about 10% at a time.",
     "The 5K check is optional and only offered after pain-free weeks 9-10. Sub-35:00 needs faster than 7:00 per km (11:16 per mile). That pace is not prescribed for regular runs.",
     "Thirty minutes of continuous running is not the same as 5K. With roughly 10½ weeks from a limited base, a comfortable sub-35 5K by December 31 is possible but not assured.",
     "Lifting working reps start at about 60% of a clean max and always leave 2+ reps in reserve. Progress is weekly, depends on how you did, and comes in small steps (+1 pull-up or dip, +2 push-ups).",
-    "Dips and push-ups both load the chest, shoulders and triceps. Their order alternates between Tuesday and Thursday, and total pressing sets stay at about 5 per session.",
+    "Pull-ups, dips and push-ups are trained three times a week (Sunday, Tuesday, Thursday), more often and with more sets than general guidelines, because high-rep goals need frequent practice. Sunday is the push-up volume day. Short, easy push-up sets follow each run. The trade-off is more load on elbows and shoulders, so every set stops 2 clean reps short and pain holds progression.",
+    "Sunday, October 18 stays a rest day so the first workout is still Monday, October 19. Sunday lifting starts October 25.",
     "Rep checks are optional and happen in weeks 5 and 11, then every 6 weeks. Nothing requires a max test.",
     "25 pull-ups, 50 dips and 100 push-ups are long-term goals. The plan does not force a rep curve to reach them by December 31. Where you end up depends on where you start.",
     "Repeating a week moves later weeks back by one week. Nothing is compressed to meet the date.",
