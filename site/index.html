@@ -107,7 +107,7 @@
   <main id="app"></main>
 
   <script type="module">
-    import { workout, howMuch, allDates, streaks, counted, today, label, diffDays, FIRST } from './plan.js';
+    import { workout, howMuch, allDates, streaks, counted, today, label, diffDays, FIRST, START } from './plan.js';
 
     // { 'YYYY-MM-DD': [true/false per item, in order] }
     const KEY = 'ritch-ticks';
@@ -128,6 +128,7 @@
 
     function cellClass(date, t, log) {
       if (counted(date, log)) return 'done';
+      if (date < START) return '';
       if (date === t) return 'today';
       if (date < t) return 'miss';
       return '';
@@ -155,7 +156,9 @@
       const dayIndex = Math.min(dates.length, Math.max(0, diffDays(FIRST, t) + 1));
 
       let now = '<h1>33</h1>';
-      if (w) {
+      if (t < START) {
+        now = `<h1>Starts ${esc(label(START))}</h1>`;
+      } else if (w) {
         const said = counted(t, log) ? 'You did all. Day counted.' : w.note ? `<span class="muted">${esc(w.note)}</span>` : '';
         now = `<h1>${esc(w.title)}</h1>
           <div class="list">${w.items.map((item, i) => itemHtml(item, i, checks[i])).join('')}</div>

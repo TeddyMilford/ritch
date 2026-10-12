@@ -6,6 +6,8 @@
 
 export const FIRST = '2026-10-11';
 export const LAST = '2027-01-08';
+// Before this date the app just says when it starts. Set it to FIRST to open the practice week.
+export const START = '2026-10-19';
 
 // Starting reps per set by week, index 0 = practice week. The app adjusts these from your ticks; see adjustments().
 // Starting points: 4 dips, 20 push-ups. Pull-ups unknown, so they start like dips.
