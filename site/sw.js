@@ -1,7 +1,7 @@
 // Offline support. Network first so updates show up as soon as you're online;
 // the cache answers when you're not.
 
-const CACHE = 'ritch-v8';
+const CACHE = 'ritch-v13';
 const FILES = ['./', 'index.html', 'plan.js', 'manifest.webmanifest', 'icon.svg', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', (event) => {
@@ -21,7 +21,8 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   event.respondWith(
-    fetch(event.request)
+    // no-cache: check with the server every time, so the browser's HTTP cache can't hand back an old plan.js.
+    fetch(event.request, { cache: 'no-cache' })
       .then((response) => {
         const copy = response.clone();
         caches.open(CACHE).then((cache) => cache.put(event.request, copy));

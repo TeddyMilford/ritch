@@ -7,17 +7,20 @@
 export const FIRST = '2026-10-11';
 export const LAST = '2027-01-08';
 // Before this date the app just says when it starts. Set it to FIRST to open the practice week.
-export const START = '2026-10-19';
+export const START = FIRST;
 
 // Starting reps per set by week, index 0 = practice week. The app adjusts these from your ticks; see adjustments().
 // Starting points: 4 dips, 20 push-ups. Pull-ups unknown, so they start like dips.
 // Week 6 (Thanksgiving) is lighter.
+// Push-ups are front-loaded: early reps come fast, so they climb quickly through week 5, then flatten.
 //            wk  0   1   2   3   4   5   6   7   8   9  10  11  12
 const BASE = {
-  pull:      [    2,  2,  2,  3,  3,  3,  3,  4,  4,  5,  5,  5,  6],
-  dip:       [    2,  2,  2,  3,  3,  3,  3,  4,  4,  5,  5,  5,  6],
-  push:      [   10, 10, 11, 12, 12, 13, 12, 14, 15, 15, 16, 16, 17],
+  pull:      [    3,  3,  3,  3,  3,  3,  3,  4,  4,  5,  5,  5,  6],
+  dip:       [    3,  3,  3,  3,  3,  3,  3,  4,  4,  5,  5,  5,  6],
+  push:      [   12, 14, 15, 17, 18, 19, 18, 20, 20, 21, 21, 22, 22],
 };
+// Never fewer reps per set than this, however many sessions you miss.
+const MIN = { pull: 3, dip: 3, push: 10 };
 const NAMES = { pull: 'Pull-ups', dip: 'Dips', push: 'Push-ups' };
 const STEP = { pull: 1, dip: 1, push: 2 };
 const LIGHT_WEEKS = [1, 6]; // one fewer set, and no weekly step
@@ -102,7 +105,7 @@ export function howMuch(item) {
 }
 
 function reps(m, w, adj) {
-  return Math.max(1, BASE[m][w] + adj[m]);
+  return Math.max(MIN[m], BASE[m][w] + adj[m]);
 }
 
 function run(w, day, adj) {
@@ -114,7 +117,7 @@ function run(w, day, adj) {
   return {
     items: [
       { name: 'Run', lines: [['Walk', '5 min'], ...session, ['Walk', '5 min']] },
-      { name: 'Push-ups', sets: 2, reps: Math.max(1, Math.round(reps('push', w, adj) / 2)) },
+      { name: 'Push-ups', sets: 2, reps: Math.max(1, Math.round(reps('push', w, adj) / 2)), move: 'push' },
     ],
   };
 }
@@ -142,7 +145,7 @@ function test() {
 // ---------- the hidden math ----------
 
 // Reps added to (or taken from) the starting numbers, learned from the lift days before `beforeDate`.
-//   Left a move unticked on a lift day you ticked something else: down a step next time (never below 1 rep).
+//   Left a move unticked on a lift day you ticked something else: down a step next time (never below MIN).
 //   Ticked a move in every lift session of a week (2 or more):    up a step next week.
 // Days you didn't touch at all change nothing. Weeks 1 and 6 are lighter and skip the step up.
 export function adjustments(log, beforeDate) {
@@ -171,11 +174,55 @@ export function adjustments(log, beforeDate) {
         if (ticked[m] >= 0) ticked[m]++;
       } else {
         ticked[m] = -1;
-        adj[m] = Math.max(adj[m] - STEP[m], 1 - BASE[m][w]);
+        adj[m] = Math.max(adj[m] - STEP[m], MIN[m] - BASE[m][w]);
       }
     });
   }
   return adj;
+}
+
+// ---------- totals ----------
+
+// Everything ticked from the start of the block through `upTo`: minutes run, and reps of each move.
+// Test days are one max set with no number recorded, so they add nothing.
+export function totals(log, upTo) {
+  const sum = { run: 0, pull: 0, dip: 0, push: 0 };
+  for (const date of allDates()) {
+    if (date > upTo) break;
+    const checks = log[date];
+    if (!checks) continue;
+    workout(date, log).items.forEach((item, i) => {
+      if (!checks[i]) return;
+      if (item.lines) sum.run += runMinutes(item.lines);
+      else if (item.move && item.reps != null) sum[item.move] += item.sets * item.reps;
+    });
+  }
+  sum.run = Math.round(sum.run);
+  return sum;
+}
+
+// Minutes spent running in a session's lines. Walking doesn't count.
+//   ['Run', '20 min']                    20
+//   ['Run / walk', '8 × 1 min / 90 s']   8 (the walk half is left out)
+//   ['Steady / easy', '6 × 1 min / 2 min'] 18 (both halves are running)
+//   ['5K', 'under 35:00']                35, the race at goal pace
+export function runMinutes(lines) {
+  let total = 0;
+  for (const [what, how] of lines) {
+    if (what === 'Walk') continue;
+    if (what === '5K') { total += 35; continue; }
+    const [, times = 1, rest] = how.match(/^(?:(\d+) × )?(.*)$/);
+    let parts = rest.split(' / ').map(minutes);
+    if (what.endsWith('/ walk')) parts = parts.slice(0, 1);
+    total += Number(times) * parts.reduce((a, b) => a + b, 0);
+  }
+  return total;
+}
+
+// "2.5 min" -> 2.5, "90 s" -> 1.5, "30 min easy" -> 30
+function minutes(s) {
+  const [, n, unit] = s.match(/^([\d.]+) (min|s)\b/);
+  return unit === 's' ? Number(n) / 60 : Number(n);
 }
 
 // ---------- the block and streaks ----------
