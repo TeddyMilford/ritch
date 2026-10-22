@@ -1,7 +1,5 @@
 # Ritch
 
-Run, bitch. 33 is Paul Newman's racing number.
-
 A sibling of [Change](https://github.com/TeddyMilford/change). One screen: a 90-day block (Oct 11, 2026 to Jan 8, 2027) as 90 squares, and the one thing to do now.
 
 The screen shows today as a list. Tap each thing when it's done; tap again to untick. Tick everything and the day gets a 33: "You did all. Day counted." Rest days have one thing: "I rested". Streaks count days in a row.
