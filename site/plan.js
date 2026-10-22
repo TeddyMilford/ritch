@@ -1,15 +1,17 @@
-// The whole plan: a 90-day block, Sunday Oct 11, 2026 to Friday Jan 8, 2027. Edit this file to change it.
+// The whole plan: an 82-day block, Monday Oct 19, 2026 to Friday Jan 8, 2027. Edit this file to change it.
 //
-// Week 0 is practice (Oct 11-17). Week 1 starts Sunday Oct 18 (a rest day); the first workout is Monday Oct 19.
+// Weeks run Sunday to Saturday. Week 1 starts Sunday Oct 18, the day before the block; the first workout is Monday Oct 19.
 // Runs: Mon, Wed, Sat. Lifting: Sun, Tue, Thu. Rest: Fri.
 // Running weeks 1-9 are NHS Couch to 5K. Weeks 10-11 build to a 5K on Wed Dec 30. Thu Dec 31 is a max test.
 
-export const FIRST = '2026-10-11';
+export const FIRST = '2026-10-19';
 export const LAST = '2027-01-08';
-// Before this date the app just says when it starts. Set it to FIRST to open the practice week.
+// Before this date the app just says when it starts.
 export const START = FIRST;
+// Sunday of week 0. Week numbers count from here, so Oct 18 starts week 1.
+const WEEK_ZERO = '2026-10-11';
 
-// Starting reps per set by week, index 0 = practice week. The app adjusts these from your ticks; see adjustments().
+// Starting reps per set by week. Index 0 is unused: there's no week 0 in the block. The app adjusts these from your ticks; see adjustments().
 // Starting points: 4 dips, 20 push-ups. Pull-ups unknown, so they start like dips.
 // Week 6 (Thanksgiving) is lighter.
 // Push-ups are front-loaded: early reps come fast, so they climb quickly through week 5, then flatten.
@@ -77,7 +79,7 @@ export function workout(date, log = {}) {
 
   const w = week(date);
   const day = weekday(date);
-  const tag = w === 0 ? 'Practice' : `Week ${w}`;
+  const tag = `Week ${w}`;
   const k = kind(date);
 
   if (k === 'rest') return { title: 'Rest', tag, rest: true, items: [{ name: 'I rested' }] };
@@ -90,8 +92,8 @@ export function workout(date, log = {}) {
 
 function kind(date) {
   const day = weekday(date);
-  if (day === 5 || date === '2026-10-18') return 'rest';
-  if (date === '2026-12-31' || (week(date) === 0 && day === 4)) return 'test';
+  if (day === 5) return 'rest';
+  if (date === '2026-12-31') return 'test';
   if (day === 1 || day === 3 || day === 6) return 'run';
   return 'lift';
 }
@@ -109,7 +111,6 @@ function reps(m, w, adj) {
 }
 
 function run(w, day, adj) {
-  if (w === 0) return { items: [{ name: 'Run', lines: [['Walk', '5 min'], ['Jog / walk', '6 × 30 s / 90 s'], ['Walk', '5 min']] }] };
   if (w === 11 && day === 3) {
     return { items: [{ name: '5K', lines: [['Walk', '5 min'], ['Jog', '5 min'], ['5K', 'under 35:00']] }], note: '7:00 per km.' };
   }
@@ -126,9 +127,6 @@ function lift(w, day, adj) {
   const light = LIGHT_WEEKS.includes(w) || (w === 11 && day === 2);
   const move = (m, n) => ({ name: NAMES[m], sets: light ? n - 1 : n, reps: reps(m, w, adj), move: m });
 
-  if (w === 0) {
-    return [move('pull', 2), move('dip', 2), move('push', 2), { name: 'Squat', sets: 2, reps: 10 }, { name: 'Hollow hold', sets: 2, amount: '15 s' }];
-  }
   const sessions = {
     0: [move('push', 5), move('pull', 4), move('dip', 3), { name: 'L-sit', sets: 3, amount: '15 s' }, { name: 'Dead hang', sets: 2, amount: '30 s' }],
     2: [move('pull', 5), move('dip', 4), move('push', 3), { name: 'Squat', sets: 3, reps: 15 }, { name: 'Hollow hold', sets: 3, amount: '20 s' }],
@@ -151,7 +149,7 @@ function test() {
 export function adjustments(log, beforeDate) {
   const adj = { pull: 0, dip: 0, push: 0 };
   let ticked = { pull: 0, dip: 0, push: 0 }; // sessions ticked this week, or -1 once one was missed
-  let current = 0;
+  let current = week(FIRST);
 
   for (const date of allDates()) {
     const w = week(date);
@@ -279,7 +277,7 @@ export function weekday(date) {
 }
 
 function week(date) {
-  return Math.floor(diffDays(FIRST, date) / 7);
+  return Math.floor(diffDays(WEEK_ZERO, date) / 7);
 }
 
 // Today in Chicago, wherever the phone is.

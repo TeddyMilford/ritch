@@ -8,8 +8,9 @@ function tick(date, log, skip = []) {
   return { ...log, [date]: w.items.map((_, i) => !skip.includes(i)) };
 }
 
-test('a 90-day block, every day has something to tick', () => {
-  assert.equal(allDates().length, 90);
+test('an 82-day block, every day has something to tick', () => {
+  assert.equal(allDates().length, 82);
+  assert.equal(allDates()[0], '2026-10-19');
   assert.equal(allDates().at(-1), LAST);
   for (const d of allDates()) {
     const w = workout(d);
@@ -23,8 +24,7 @@ test('weekly pattern', () => {
   for (const d of allDates()) {
     const expected = { 0: 'Lift', 1: 'Run', 2: 'Lift', 3: 'Run', 4: 'Lift', 5: 'Rest', 6: 'Run' }[weekday(d)];
     const title = workout(d).title;
-    if (d === '2026-10-18') assert.equal(title, 'Rest');
-    else if (d === '2026-10-15' || d === '2026-12-31') assert.equal(title, 'Test');
+    if (d === '2026-12-31') assert.equal(title, 'Test');
     else assert.equal(title, expected, d);
   }
 });
@@ -46,29 +46,32 @@ test('starting numbers and lighter weeks', () => {
 });
 
 test('hidden math: a ticked week steps up', () => {
-  let log = tick('2026-10-11', {});
-  log = tick('2026-10-13', log);
-  assert.deepEqual(adjustments(log, '2026-10-13'), { pull: 0, dip: 0, push: 0 }); // week not over
-  assert.deepEqual(adjustments(log, '2026-10-18'), { pull: 1, dip: 1, push: 2 });
-  assert.equal(workout('2026-10-27', log).items[0].reps, 4); // week 2 pull-ups: 3 + 1
+  // Week 2: Sunday and Tuesday ticked, Thursday untouched.
+  let log = tick('2026-10-25', {});
+  log = tick('2026-10-27', log);
+  assert.deepEqual(adjustments(log, '2026-10-27'), { pull: 0, dip: 0, push: 0 }); // week not over
+  assert.deepEqual(adjustments(log, '2026-11-01'), { pull: 1, dip: 1, push: 2 });
+  assert.equal(workout('2026-11-03', log).items[0].reps, 4); // week 3 pull-ups: 3 + 1
 });
 
 test('hidden math: leaving one unticked drops it, never below the minimum', () => {
-  // Practice Sunday: pull, dip, push, squat, hollow. Pull-ups and push-ups left unticked.
-  let log = tick('2026-10-11', {}, [0, 2]);
-  assert.equal(workout('2026-10-13', log).items[0].reps, 3); // pull-ups already at the minimum
-  assert.equal(workout('2026-10-13', log).items[2].reps, 10); // push-ups 12 - 2
-  log = tick('2026-10-13', log, [0, 2]);
-  assert.equal(workout('2026-10-20', log).items[0].reps, 3); // pull-ups floor
-  assert.equal(adjustments(log, '2026-10-14').push, -2); // push-ups floor: a second drop from 10 is capped
-  assert.equal(workout('2026-10-20', log).items[2].reps, 12); // week 1 base 14, still 2 down
-  assert.equal(adjustments(log, '2026-10-18').dip, 1); // dips were ticked both times
+  // Week 2 Sunday: push, pull, dip, L-sit, hang. Push-ups and pull-ups left unticked.
+  let log = tick('2026-10-25', {}, [0, 1]);
+  assert.equal(workout('2026-10-27', log).items[0].reps, 3); // pull-ups already at the minimum
+  assert.equal(workout('2026-10-27', log).items[2].reps, 13); // push-ups 15 - 2
+  // Tuesday: pull, dip, push. Thursday: pull, push, dip. Push-ups left unticked both times.
+  log = tick('2026-10-27', log, [0, 2]);
+  log = tick('2026-10-29', log, [1]);
+  assert.equal(adjustments(log, '2026-10-30').pull, 0); // pull-ups floor
+  assert.equal(adjustments(log, '2026-10-30').push, -5); // push-ups floor: a third drop from 11 is capped at 10
+  assert.equal(workout('2026-11-03', log).items[2].reps, 12); // week 3 base 17, still 5 down
+  assert.equal(adjustments(log, '2026-11-01').dip, 1); // dips were ticked every time
 });
 
 test('hidden math: untouched days and light weeks change nothing', () => {
   assert.deepEqual(adjustments({}, LAST), { pull: 0, dip: 0, push: 0 });
   let log = {};
-  for (const d of ['2026-10-18', '2026-10-20', '2026-10-22', '2026-10-25']) log = tick(d, log); // week 1 is light
+  for (const d of ['2026-10-20', '2026-10-22']) log = tick(d, log); // week 1 is light
   assert.deepEqual(adjustments(log, '2026-10-26'), { pull: 0, dip: 0, push: 0 });
 });
 
@@ -77,28 +80,25 @@ test('a day counts only when everything is ticked', () => {
   assert.equal(counted(d, {}), false);
   assert.equal(counted(d, tick(d, {}, [4])), false);
   assert.equal(counted(d, tick(d, {})), true);
-  assert.equal(counted('2026-10-16', tick('2026-10-16', {})), true); // Friday rest
+  assert.equal(counted('2026-10-23', tick('2026-10-23', {})), true); // Friday rest
 });
 
 test('streaks include rest days and wait for today', () => {
   let log = {};
-  for (const d of ['2026-10-15', '2026-10-16', '2026-10-17']) log = tick(d, log);
-  assert.deepEqual(streaks(log, '2026-10-18'), { current: 3, longest: 3 }); // today not ticked yet
-  assert.deepEqual(streaks(log, '2026-10-19'), { current: 0, longest: 3 }); // Sunday missed
+  for (const d of ['2026-10-21', '2026-10-22', '2026-10-23']) log = tick(d, log);
+  assert.deepEqual(streaks(log, '2026-10-24'), { current: 3, longest: 3 }); // today not ticked yet
+  assert.deepEqual(streaks(log, '2026-10-25'), { current: 0, longest: 3 }); // Saturday missed
 });
 
 test('totals: reps and run minutes ticked through a date', () => {
-  // Practice Sunday: pull 2 × 3, dip 2 × 3, push 2 × 12, squat, hollow. Leave dips unticked.
-  let log = tick('2026-10-11', {}, [1]);
-  assert.deepEqual(totals(log, '2026-10-11'), { run: 0, pull: 6, dip: 0, push: 24 });
-  // Practice Monday run: 6 × 30 s jogging = 3 min, plus nothing else.
-  log = tick('2026-10-12', log);
-  assert.equal(totals(log, '2026-10-12').run, 3);
-  assert.equal(totals(log, '2026-10-11').run, 0); // later days don't count toward an earlier date
-  assert.deepEqual(totals({}, LAST), { run: 0, pull: 0, dip: 0, push: 0 });
   // Week 1 Monday: 8 × 1 min run, then 2 × 7 push-ups (half of 14).
-  log = tick('2026-10-19', {});
+  let log = tick('2026-10-19', {});
   assert.deepEqual(totals(log, '2026-10-19'), { run: 8, pull: 0, dip: 0, push: 14 });
+  // Tuesday, light: pull 4 × 3, dip 3 × 3, push 2 × 14. Leave dips unticked.
+  log = tick('2026-10-20', log, [1]);
+  assert.deepEqual(totals(log, '2026-10-20'), { run: 8, pull: 12, dip: 0, push: 42 });
+  assert.equal(totals(log, '2026-10-19').pull, 0); // later days don't count toward an earlier date
+  assert.deepEqual(totals({}, LAST), { run: 0, pull: 0, dip: 0, push: 0 });
 });
 
 test('run minutes leave out walking', () => {

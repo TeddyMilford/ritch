@@ -1,7 +1,7 @@
 // Offline support. Network first so updates show up as soon as you're online;
 // the cache answers when you're not.
 
-const CACHE = 'ritch-v13';
+const CACHE = 'ritch-v14';
 const FILES = ['./', 'index.html', 'plan.js', 'manifest.webmanifest', 'icon.svg', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', (event) => {

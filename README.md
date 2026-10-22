@@ -1,6 +1,6 @@
 # Ritch
 
-A sibling of [Change](https://github.com/TeddyMilford/change). One screen: a 90-day block (Oct 11, 2026 to Jan 8, 2027) as 90 squares, and the one thing to do now.
+A sibling of [Change](https://github.com/TeddyMilford/change). One screen: an 82-day block (Oct 19, 2026 to Jan 8, 2027) as 82 squares, and the one thing to do now.
 
 The goals, by Thursday Dec 31: a 5K under 35:00, 25 pull-ups, 50 dips, 100 push-ups. Under the grid are running totals instead: minutes run, pull-ups, dips and push-ups ticked so far. Open a past day and they show the totals through that date.
 
@@ -14,7 +14,7 @@ The hidden math (pull-ups, dips, push-ups): leave one unticked on a lift day whe
 | Mon, Wed, Sat | Run (Couch to 5K), then 2 easy sets of push-ups |
 | Fri | Rest |
 
-Oct 11-17 is a practice week; Thursday Oct 15 is a max test. Week 6 (Thanksgiving) is lighter. Wednesday Dec 30 is a 5K. Thursday Dec 31 is a max test. The block ends Friday Jan 8.
+The block starts Monday Oct 19, in week 1. Week 6 (Thanksgiving) is lighter. Wednesday Dec 30 is a 5K. Thursday Dec 31 is a max test. The block ends Friday Jan 8.
 
 ## Files
 

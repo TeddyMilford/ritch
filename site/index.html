@@ -221,7 +221,7 @@
 
       root.innerHTML = `
         <p class="head"><span>Day <b>${dayIndex}</b> of ${dates.length}</span><span><b>${count}</b> done</span></p>
-        <div class="grid" aria-label="Oct 11 to Jan 8">${dates.map((d) => `<i class="c ${cellClass(d, t, log)} ${d === viewing ? 'view' : ''}" title="${label(d)}" ${canOpen(d, t) ? `data-day="${d}"` : ''}></i>`).join('')}</div>
+        <div class="grid" aria-label="Oct 19 to Jan 8">${dates.map((d) => `<i class="c ${cellClass(d, t, log)} ${d === viewing ? 'view' : ''}" title="${label(d)}" ${canOpen(d, t) ? `data-day="${d}"` : ''}></i>`).join('')}</div>
         <p class="goals muted" aria-label="Done through ${esc(label(shown))}">${tally.map(([n, what]) => `<span><b>${n.toLocaleString('en-US')}</b>${esc(what)}</span>`).join('')}</p>
         <section class="now">${now}</section>
         <p class="foot muted"><span>${count ? `Streak <b>${run.current}</b> · longest <b>${run.longest}</b>` : '&nbsp;'}</span>${DEMO ? demoNav(t) : ''}</p>
